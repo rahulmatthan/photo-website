@@ -1,0 +1,8 @@
+baseURL = 'https://photos.rahulmatthan.com/'
+languageCode = 'en-us'
+title = 'Rahul Matthan Photography'
+theme = []
+disableKinds = ['taxonomy', 'term']
+
+[params]
+  description = "Minimalistic photography portfolio."

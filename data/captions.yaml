@@ -1,0 +1,90 @@
+# Image Captions
+# Add captions for your images below. The key should match the image filename.
+# Example:
+#   "image-name.jpg":
+#     location: "Location Name"
+#     details: "Camera settings, date, or other details"
+
+"RXM_Master_20211115_DSC04516.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211115_DSC04674.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211115_RXM08026.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211117_DSC05186.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211117_RXM09406.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211118_RXM00393.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211118_RXM01193.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211119_RXM03316.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211121_RXM06424.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211121_RXM06472.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211121_RXM06995.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211122_RXM09767.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211123_RXM01369.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211123_RXM09266.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20211124_RXM01948.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20220428_RXM02789.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20220430_RXM06855.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"RXM_Master_20220501_RXM07116.jpg":
+  location: "Location"
+  details: "Add details here"
+
+"sample1.png":
+  location: "Location"
+  details: "Add details here"
+
+"sample2.png":
+  location: "Location"
+  details: "Add details here"
+
+"sample3.png":
+  location: "Location"
+  details: "Add details here"
