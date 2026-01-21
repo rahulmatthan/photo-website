@@ -7,10 +7,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const captionLocation = document.getElementById('caption-location');
     const captionDetails = document.getElementById('caption-details');
     const caption = document.getElementById('caption');
+    const header = document.querySelector('.header');
+    const footer = document.querySelector('.footer');
 
     if (slides.length === 0) return;
 
+    // Mobile/tablet detection
+    function isMobile() {
+        return window.innerWidth <= 1024;
+    }
+
+    // UI auto-hide for mobile
+    let uiHideTimer = null;
+    const UI_HIDE_DELAY = 10000; // 10 seconds
+
+    function hideUI() {
+        if (!isMobile()) return;
+        header.classList.add('ui-hidden');
+        footer.classList.add('ui-hidden');
+    }
+
+    function showUI() {
+        header.classList.remove('ui-hidden');
+        footer.classList.remove('ui-hidden');
+        resetUIHideTimer();
+    }
+
+    function resetUIHideTimer() {
+        if (uiHideTimer) clearTimeout(uiHideTimer);
+        if (isMobile()) {
+            uiHideTimer = setTimeout(hideUI, UI_HIDE_DELAY);
+        }
+    }
+
     let currentIndex = 0;
+    const loadedImages = new Set([0]); // Track loaded images, first is always loaded
+
+    // Preload an image by moving data-src to src
+    function preloadImage(index) {
+        if (index < 0 || index >= slides.length) return;
+        if (loadedImages.has(index)) return;
+
+        const img = slides[index].querySelector('img');
+        if (img && img.dataset.src && !img.src) {
+            img.src = img.dataset.src;
+            loadedImages.add(index);
+        }
+    }
+
+    // Preload adjacent images (previous, current, next)
+    function preloadAdjacent(index) {
+        preloadImage(index);
+        preloadImage((index + 1) % slides.length);
+        preloadImage((index - 1 + slides.length) % slides.length);
+    }
     let autoAdvanceTimer = null;
     let captionFadeOutTimer = null;
     let captionFadeInTimer = null;
@@ -46,6 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Wrap around
         if (index < 0) index = slides.length - 1;
         if (index >= slides.length) index = 0;
+
+        // Preload current and adjacent images
+        preloadAdjacent(index);
 
         // Clear any pending caption timers
         if (captionFadeInTimer) clearTimeout(captionFadeInTimer);
@@ -97,6 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
         scheduleCaptionFadeOut();
         setTimeout(startAutoAdvance, SLIDE_DURATION);
+        // Show UI on mobile when user interacts
+        showUI();
     }
 
     // Keyboard navigation
@@ -189,4 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize: caption with delayed fade in
     initializeCaption();
+
+    // Preload adjacent images (second image) for smooth first transition
+    preloadAdjacent(0);
+
+    // Start UI hide timer for mobile
+    resetUIHideTimer();
 });

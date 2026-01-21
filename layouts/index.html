@@ -39,7 +39,12 @@
     <div class="slide {{ if eq $imageIndex 0 }}active{{ end }}"
          data-index="{{ $imageIndex }}"
          {{ if $hasFilenameCaption }}data-location="{{ index $parts 0 }}" data-details="{{ index $parts 1 }}"{{ else if $caption }}data-location="{{ $caption.location }}" data-details="{{ $caption.details }}"{{ end }}>
+        {{/* First image loads immediately, others lazy load */}}
+        {{ if eq $imageIndex 0 }}
         <img src="{{ printf "/images/%s" .Name }}" alt="{{ .Name }}">
+        {{ else }}
+        <img data-src="{{ printf "/images/%s" .Name }}" alt="{{ .Name }}" class="lazy">
+        {{ end }}
     </div>
     {{ $imageIndex = add $imageIndex 1 }}
     {{ end }}

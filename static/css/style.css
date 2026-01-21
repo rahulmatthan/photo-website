@@ -224,15 +224,30 @@ main {
     font-size: 0.9em;
 }
 
-/* Mobile Adjustments */
-@media (max-width: 768px) {
+/* Mobile & Tablet Adjustments */
+@media (max-width: 1024px) {
     :root {
         --header-height: 60px;
         --footer-height: 60px;
     }
 
+    /* Full-screen gallery - remove header/footer reserved space */
+    .gallery {
+        top: 0;
+        bottom: 0;
+    }
+
+    /* Header overlay with gradient */
     .header {
         padding: 0 20px;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+        transition: opacity 0.5s ease;
+    }
+
+    /* Footer overlay with reverse gradient */
+    .footer {
+        background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+        transition: opacity 0.5s ease;
     }
 
     .watermark-name {
@@ -243,8 +258,15 @@ main {
         font-size: 0.55rem;
     }
 
+    /* Full-bleed slides */
     .slide {
-        padding: 15px;
+        padding: 0;
+    }
+
+    .slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
     }
 
     .caption-location {
@@ -255,19 +277,15 @@ main {
         font-size: 0.75rem;
     }
 
+    /* UI auto-hide state */
+    .header.ui-hidden,
+    .footer.ui-hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Hide arrow zones on mobile/tablet - use tap navigation */
     .hover-zone {
-        width: 80px;
-    }
-
-    .arrow {
-        font-size: 2.5rem;
-        padding: 15px;
-    }
-}
-
-/* Touch devices - always show arrows */
-@media (hover: none) {
-    .arrow {
-        color: rgba(255, 255, 255, 0.4);
+        display: none;
     }
 }
