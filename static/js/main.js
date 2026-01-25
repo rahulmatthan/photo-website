@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const slides = document.querySelectorAll('.slide');
+    const gallery = document.getElementById('gallery');
+    let slides = document.querySelectorAll('.slide');
     const arrowLeft = document.getElementById('arrow-left');
     const arrowRight = document.getElementById('arrow-right');
     const hoverLeft = document.getElementById('hover-left');
@@ -11,6 +12,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const footer = document.querySelector('.footer');
 
     if (slides.length === 0) return;
+
+    // Shuffle array helper function
+    function shuffleArray(array) {
+        const shuffled = Array.from(array);
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    }
+
+    // Shuffle slides on page load for random order every time
+    const shuffledSlides = shuffleArray(slides);
+    shuffledSlides.forEach((slide, index) => {
+        // Update data-index to match new position
+        slide.setAttribute('data-index', index);
+        // Remove active class from all
+        slide.classList.remove('active');
+        // Re-append to DOM in shuffled order
+        gallery.appendChild(slide);
+    });
+
+    // First slide becomes active
+    shuffledSlides[0].classList.add('active');
+
+    // Update slides reference after shuffling
+    slides = document.querySelectorAll('.slide');
 
     // Mobile/tablet detection
     function isMobile() {
