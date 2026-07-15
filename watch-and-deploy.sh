@@ -3,8 +3,8 @@
 # Auto-deploy script for Photo Website
 # Watches for image changes and automatically commits/pushes to GitHub
 
-WATCH_DIR="/Users/rahul/Coding/Photo Website/static/images"
-REPO_DIR="/Users/rahul/Coding/Photo Website"
+WATCH_DIR="/Users/rahul/Coding/photo-website/static/images"
+REPO_DIR="/Users/rahul/Coding/photo-website"
 CHECK_INTERVAL=5  # seconds between checks
 
 echo "Watching for image changes in: $WATCH_DIR"
