@@ -83,26 +83,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Preload adjacent images (previous, current, next)
-    function preloadAdjacent(index) {
-        preloadImage(index);
-        preloadImage((index + 1) % slides.length);
-        preloadImage((index - 1 + slides.length) % slides.length);
-    }
-
-    // Progressively preload every remaining image in the background so each
-    // photo is cached well before the slideshow reaches it. Staggered to avoid
-    // saturating the connection all at once.
-    function preloadAll() {
-        let i = 0;
-        function loadNext() {
-            while (i < slides.length && loadedImages.has(i)) i++;
-            if (i >= slides.length) return;
+    // Preload a bounded window of upcoming (and a couple of previous) images.
+    // Only ever loading a fixed number of images keeps per-visit bandwidth
+    // constant no matter how large the library grows — so this scales to
+    // hundreds or thousands of photos. The wide "ahead" margin gives each
+    // image many seconds to download before it is shown.
+    const PRELOAD_AHEAD = 6;
+    const PRELOAD_BEHIND = 2;
+    function preloadWindow(index) {
+        for (let offset = -PRELOAD_BEHIND; offset <= PRELOAD_AHEAD; offset++) {
+            const i = ((index + offset) % slides.length + slides.length) % slides.length;
             preloadImage(i);
-            i++;
-            setTimeout(loadNext, 250);
         }
-        loadNext();
     }
     let autoAdvanceTimer = null;
     let captionFadeOutTimer = null;
@@ -134,19 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
         captionFadeOutTimer = setTimeout(fadeOutCaption, SLIDE_DURATION - CAPTION_FADE_OUT_DELAY);
     }
 
-    // Go to a specific slide
-    function goToSlide(index) {
-        // Wrap around
-        if (index < 0) index = slides.length - 1;
-        if (index >= slides.length) index = 0;
-
-        // Preload current and adjacent images
-        preloadAdjacent(index);
-
-        // Clear any pending caption timers
-        if (captionFadeInTimer) clearTimeout(captionFadeInTimer);
-        if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
-
+    // Reveal a slide (called only once its image is ready)
+    function activateSlide(index) {
         // Remove active class from all slides
         slides.forEach(slide => slide.classList.remove('active'));
 
@@ -160,6 +141,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Schedule fade out for 1 second before next slide
         scheduleCaptionFadeOut();
+    }
+
+    // Go to a specific slide
+    let navToken = 0;
+    function goToSlide(index) {
+        // Wrap around
+        if (index < 0) index = slides.length - 1;
+        if (index >= slides.length) index = 0;
+
+        // Preload a window of upcoming images
+        preloadWindow(index);
+
+        // Clear any pending caption timers
+        if (captionFadeInTimer) clearTimeout(captionFadeInTimer);
+        if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
+
+        // If the incoming image hasn't finished downloading, keep the current
+        // one on screen and switch only once it's ready — so a slow load never
+        // flashes a blank/broken frame. navToken guards against a stale image
+        // loading after the user has already moved on to another slide.
+        const token = ++navToken;
+        const img = slides[index].querySelector('img');
+        if (img && !(img.complete && img.naturalWidth > 0)) {
+            const reveal = () => { if (token === navToken) activateSlide(index); };
+            img.addEventListener('load', reveal, { once: true });
+            img.addEventListener('error', reveal, { once: true });
+        } else {
+            activateSlide(index);
+        }
     }
 
     // Next slide
@@ -288,11 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize: caption with delayed fade in
     initializeCaption();
 
-    // Preload adjacent images (second image) for smooth first transition
-    preloadAdjacent(0);
-
-    // Then load the rest in the background so nothing is caught mid-download
-    preloadAll();
+    // Preload the opening window of images for smooth early transitions
+    preloadWindow(0);
 
     // Start UI hide timer for mobile
     resetUIHideTimer();
