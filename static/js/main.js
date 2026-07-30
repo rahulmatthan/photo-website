@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let currentIndex = 0;
-    const loadedImages = new Set([0]); // Track loaded images, first is always loaded
+    const loadedImages = new Set(); // Track which slides have had their image src set
 
     // Preload an image by moving data-src to src
     function preloadImage(index) {
@@ -88,6 +88,21 @@ document.addEventListener('DOMContentLoaded', () => {
         preloadImage(index);
         preloadImage((index + 1) % slides.length);
         preloadImage((index - 1 + slides.length) % slides.length);
+    }
+
+    // Progressively preload every remaining image in the background so each
+    // photo is cached well before the slideshow reaches it. Staggered to avoid
+    // saturating the connection all at once.
+    function preloadAll() {
+        let i = 0;
+        function loadNext() {
+            while (i < slides.length && loadedImages.has(i)) i++;
+            if (i >= slides.length) return;
+            preloadImage(i);
+            i++;
+            setTimeout(loadNext, 250);
+        }
+        loadNext();
     }
     let autoAdvanceTimer = null;
     let captionFadeOutTimer = null;
@@ -275,6 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Preload adjacent images (second image) for smooth first transition
     preloadAdjacent(0);
+
+    // Then load the rest in the background so nothing is caught mid-download
+    preloadAll();
 
     // Start UI hide timer for mobile
     resetUIHideTimer();
