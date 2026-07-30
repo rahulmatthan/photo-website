@@ -31,14 +31,19 @@
 
     {{ $imageIndex := 0 }}
     {{ range $images }}
-    {{/* Parse filename for caption: Location, Year—Title.jpg */}}
+    {{/* Parse filename for caption: Title—Location, Year.jpg
+         Separator is forgiving — an em-dash (—), en-dash (–), or a hyphen
+         surrounded by spaces ( - ) all work the same way. */}}
     {{ $baseName := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" .Name }}
-    {{ $parts := split $baseName "—" }}
+    {{/* Normalise any supported separator (with surrounding spaces) to one em-dash */}}
+    {{ $normalized := replaceRE "\\s*[—–]\\s*" "—" $baseName }}
+    {{ $normalized = replaceRE "\\s+-\\s+" "—" $normalized }}
+    {{ $parts := split $normalized "—" }}
     {{ $hasFilenameCaption := gt (len $parts) 1 }}
     {{ $caption := index $captions .Name }}
     <div class="slide {{ if eq $imageIndex 0 }}active{{ end }}"
          data-index="{{ $imageIndex }}"
-         {{ if $hasFilenameCaption }}data-location="{{ index $parts 0 }}" data-details="{{ index $parts 1 }}"{{ else if $caption }}data-location="{{ $caption.location }}" data-details="{{ $caption.details }}"{{ end }}>
+         {{ if $hasFilenameCaption }}data-location="{{ index $parts 0 }}" data-details="{{ index $parts 1 }}"{{ else if $caption }}data-location="{{ $caption.location }}" data-details="{{ $caption.details }}"{{ else }}data-location="{{ $baseName }}"{{ end }}>
         {{/* First image loads immediately, others lazy load */}}
         {{ if eq $imageIndex 0 }}
         <img src="{{ printf "/images/%s" .Name }}" alt="{{ .Name }}">
