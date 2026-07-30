@@ -9,20 +9,14 @@
 
 <!-- Image Display Area -->
 <div class="gallery" id="gallery">
-    {{ $imagePath := "static/images" }}
     {{ $captions := site.Data.captions }}
 
-    {{ if (fileExists $imagePath) }}
-    {{ $files := readDir $imagePath }}
-
-    {{/* Collect valid images */}}
+    {{/* Collect image resources from assets/images/ (Hugo asset pipeline) */}}
     {{ $images := slice }}
-    {{ range $files }}
-    {{ if not .IsDir }}
+    {{ range (resources.Match "images/*") }}
     {{ $lowerName := lower .Name }}
     {{ if or (strings.HasSuffix $lowerName ".jpg") (strings.HasSuffix $lowerName ".jpeg") (strings.HasSuffix $lowerName ".png") (strings.HasSuffix $lowerName ".webp") }}
     {{ $images = $images | append . }}
-    {{ end }}
     {{ end }}
     {{ end }}
 
@@ -31,24 +25,30 @@
 
     {{ $imageIndex := 0 }}
     {{ range $images }}
+    {{/* Resize to a screen-friendly box and convert to WebP so each photo is a
+         fraction of its original weight. Hugo does this once at build time and
+         caches the result; the source file in assets/images/ is untouched. */}}
+    {{ $img := .Fit "2048x2048 webp q80" }}
+
     {{/* Parse filename for caption: Title—Location, Year.jpg
          Separator is forgiving — an em-dash (—), en-dash (–), or a hyphen
          surrounded by spaces ( - ) all work the same way. */}}
-    {{ $baseName := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" .Name }}
+    {{ $base := path.Base .Name }}
+    {{ $baseName := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" $base }}
     {{/* Normalise any supported separator (with surrounding spaces) to one em-dash */}}
     {{ $normalized := replaceRE "\\s*[—–]\\s*" "—" $baseName }}
     {{ $normalized = replaceRE "\\s+-\\s+" "—" $normalized }}
     {{ $parts := split $normalized "—" }}
     {{ $hasFilenameCaption := gt (len $parts) 1 }}
-    {{ $caption := index $captions .Name }}
+    {{ $caption := index $captions $base }}
     <div class="slide {{ if eq $imageIndex 0 }}active{{ end }}"
          data-index="{{ $imageIndex }}"
          {{ if $hasFilenameCaption }}data-location="{{ index $parts 0 }}" data-details="{{ index $parts 1 }}"{{ else if $caption }}data-location="{{ $caption.location }}" data-details="{{ $caption.details }}"{{ else }}data-location="{{ $baseName }}"{{ end }}>
         {{/* First image loads immediately, others lazy load */}}
         {{ if eq $imageIndex 0 }}
-        <img src="{{ printf "/images/%s" .Name }}" alt="{{ .Name }}">
+        <img src="{{ $img.RelPermalink }}" width="{{ $img.Width }}" height="{{ $img.Height }}" alt="{{ $base }}">
         {{ else }}
-        <img data-src="{{ printf "/images/%s" .Name }}" alt="{{ .Name }}" class="lazy">
+        <img data-src="{{ $img.RelPermalink }}" width="{{ $img.Width }}" height="{{ $img.Height }}" alt="{{ $base }}" class="lazy">
         {{ end }}
     </div>
     {{ $imageIndex = add $imageIndex 1 }}
@@ -57,14 +57,8 @@
     {{ if eq (len $images) 0 }}
     <div class="placeholder-msg">
         <h2>Gallery Empty</h2>
-        <p>No images found in <code>static/images/</code>.</p>
-        <p>Please drop your .jpg or .png photos directly into the <code>static/images/</code> folder.</p>
-    </div>
-    {{ end }}
-
-    {{ else }}
-    <div class="placeholder-msg">
-        <p>No <code>static/images</code> folder found. Please create it and add images.</p>
+        <p>No images found in <code>assets/images/</code>.</p>
+        <p>Please drop your .jpg or .png photos directly into the <code>assets/images/</code> folder.</p>
     </div>
     {{ end }}
 </div>

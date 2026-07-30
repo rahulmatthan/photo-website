@@ -3,7 +3,7 @@
 # Auto-deploy script for Photo Website
 # Watches for image changes and automatically commits/pushes to GitHub
 
-WATCH_DIR="/Users/rahul/Coding/photo-website/static/images"
+WATCH_DIR="/Users/rahul/Coding/photo-website/assets/images"
 REPO_DIR="/Users/rahul/Coding/photo-website"
 CHECK_INTERVAL=5  # seconds between checks
 
@@ -37,7 +37,7 @@ while true; do
             echo "Committing and pushing changes..."
 
             # Add all changes in images directory
-            git add static/images/
+            git add assets/images/
 
             # Create commit message based on changes
             added=$(git diff --cached --name-only --diff-filter=A | wc -l | tr -d ' ')
