@@ -1,306 +1,88 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const gallery = document.getElementById('gallery');
-    let slides = document.querySelectorAll('.slide');
-    const arrowLeft = document.getElementById('arrow-left');
-    const arrowRight = document.getElementById('arrow-right');
-    const hoverLeft = document.getElementById('hover-left');
-    const hoverRight = document.getElementById('hover-right');
-    const captionLocation = document.getElementById('caption-location');
-    const captionDetails = document.getElementById('caption-details');
-    const caption = document.getElementById('caption');
-    const header = document.querySelector('.header');
-    const footer = document.querySelector('.footer');
+// The Hide — gallery spotlight. A framed print rises from black, is held, then the
+// light dims fully to black before the next photograph lights up in its place.
+(function(){
+  const IMAGES = window.IMAGES || [];
+  const $ = id => document.getElementById(id);
+  const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), reveal=$('reveal');
+  const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const N = IMAGES.length;
+  if(!N || !reveal){ return; }
 
-    if (slides.length === 0) return;
+  let maxR=1600;
+  function setMax(){ maxR = 1.85*Math.hypot(innerWidth,innerHeight); }
+  addEventListener('resize', setMax); setMax();
 
-    // Shuffle array helper function
-    function shuffleArray(array) {
-        const shuffled = Array.from(array);
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        return shuffled;
+  // Pull a pleasing dominant colour from an image, for the wall's ambient glow.
+  function dominant(img){
+    if(!cx) return '#caa46a';
+    cx.clearRect(0,0,36,36); cx.drawImage(img,0,0,36,36);
+    let d; try{ d=cx.getImageData(0,0,36,36).data; }catch(e){ return '#caa46a'; }
+    let r=0,g=0,b=0,n=0;
+    for(let p=0;p<d.length;p+=4){
+      const R=d[p],G=d[p+1],B=d[p+2],l=0.2126*R+0.7152*G+0.0722*B;
+      if(l<26||l>232) continue;
+      const s=Math.max(R,G,B)-Math.min(R,G,B), w=1+s/128;
+      r+=R*w; g+=G*w; b+=B*w; n+=w;
     }
+    if(!n) return '#caa46a';
+    r/=n; g/=n; b/=n; const a=(r+g+b)/3, K=1.3;
+    r=Math.min(255,a+(r-a)*K); g=Math.min(255,a+(g-a)*K); b=Math.min(255,a+(b-a)*K);
+    return 'rgb('+(r|0)+','+(g|0)+','+(b|0)+')';
+  }
 
-    // Shuffle slides on page load for random order every time
-    const shuffledSlides = shuffleArray(slides);
-    shuffledSlides.forEach((slide, index) => {
-        // Update data-index to match new position
-        slide.setAttribute('data-index', index);
-        // Remove active class from all
-        slide.classList.remove('active');
-        // Re-append to DOM in shuffled order
-        gallery.appendChild(slide);
-    });
+  // Bounded preloading — only ever a couple of images in flight, so this scales to any
+  // library size. Dominant colour is computed once, when each image loads.
+  const cache = {};
+  function preload(i){
+    i = ((i%N)+N)%N;
+    if(cache[i]) return cache[i];
+    const img = new Image();
+    img.onload = () => { if(!IMAGES[i].dom){ IMAGES[i].dom = dominant(img); } };
+    img.src = IMAGES[i].src;
+    cache[i] = img;
+    return img;
+  }
 
-    // First slide becomes active
-    shuffledSlides[0].classList.add('active');
+  let idx=0, phase='rise', t0=0, pendingDir=1;
+  const RISE=reduce?900:3000, HOLD=reduce?2500:5200, FALL=reduce?900:3000, BLACK=reduce?300:900;
+  const ease = x => x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2;
 
-    // Update slides reference after shuffling
-    slides = document.querySelectorAll('.slide');
+  function swap(i){
+    photo.src = IMAGES[i].src;
+    document.documentElement.style.setProperty('--dom', IMAGES[i].dom || '#caa46a');
+    capTitle.textContent = IMAGES[i].title || '';
+    const pl = IMAGES[i].place || '';
+    capPlace.textContent = pl;
+    capPlace.style.display = pl ? '' : 'none';
+    preload(i+1);
+  }
 
-    // Mobile/tablet detection
-    function isMobile() {
-        return window.innerWidth <= 1024;
-    }
+  function loop(now){
+    requestAnimationFrame(loop);
+    const el = now - t0; let light;
+    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
+    else if(phase==='hold'){ light=1; if(el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
+    else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
+    else { light=0; if(el>=BLACK){ idx=(idx+pendingDir+N)%N; pendingDir=1; swap(idx); phase='rise'; t0=now; } }
+    const r=light*maxR, rx=(r*1.35).toFixed(1), ry=(r*0.78).toFixed(1);
+    reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 14%, rgba(0,0,0,0.16) 40%, rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.85) 88%, #000 100%)';
+  }
 
-    // UI auto-hide for mobile
-    let uiHideTimer = null;
-    const UI_HIDE_DELAY = 10000; // 10 seconds
+  function advance(dir){ if(phase==='rise'||phase==='hold'){ pendingDir=dir; phase='fall'; t0=performance.now(); plate.classList.remove('show'); } }
+  function begin(){ idx=0; swap(0); phase='rise'; t0=performance.now(); requestAnimationFrame(loop); }
 
-    function hideUI() {
-        if (!isMobile()) return;
-        header.classList.add('ui-hidden');
-        footer.classList.add('ui-hidden');
-    }
+  const first = preload(0); preload(1);
+  if(first.complete && first.naturalWidth){ if(!IMAGES[0].dom){ IMAGES[0].dom = dominant(first); } begin(); }
+  else {
+    first.addEventListener('load', () => { if(!IMAGES[0].dom){ IMAGES[0].dom = dominant(first); } begin(); }, {once:true});
+    first.addEventListener('error', begin, {once:true});
+  }
 
-    function showUI() {
-        header.classList.remove('ui-hidden');
-        footer.classList.remove('ui-hidden');
-        resetUIHideTimer();
-    }
-
-    function resetUIHideTimer() {
-        if (uiHideTimer) clearTimeout(uiHideTimer);
-        if (isMobile()) {
-            uiHideTimer = setTimeout(hideUI, UI_HIDE_DELAY);
-        }
-    }
-
-    let currentIndex = 0;
-    const loadedImages = new Set(); // Track which slides have had their image src set
-
-    // Preload an image by moving data-src to src
-    function preloadImage(index) {
-        if (index < 0 || index >= slides.length) return;
-        if (loadedImages.has(index)) return;
-
-        const img = slides[index].querySelector('img');
-        if (img && img.dataset.src && !img.src) {
-            img.src = img.dataset.src;
-            loadedImages.add(index);
-        }
-    }
-
-    // Preload a bounded window of upcoming (and a couple of previous) images.
-    // Only ever loading a fixed number of images keeps per-visit bandwidth
-    // constant no matter how large the library grows — so this scales to
-    // hundreds or thousands of photos. The wide "ahead" margin gives each
-    // image many seconds to download before it is shown.
-    const PRELOAD_AHEAD = 6;
-    const PRELOAD_BEHIND = 2;
-    function preloadWindow(index) {
-        for (let offset = -PRELOAD_BEHIND; offset <= PRELOAD_AHEAD; offset++) {
-            const i = ((index + offset) % slides.length + slides.length) % slides.length;
-            preloadImage(i);
-        }
-    }
-    let autoAdvanceTimer = null;
-    let captionFadeOutTimer = null;
-    let captionFadeInTimer = null;
-    const SLIDE_DURATION = 7000; // 7 seconds per slide
-    const CAPTION_FADE_IN_DELAY = 2000; // 2 seconds after image appears
-    const CAPTION_FADE_OUT_DELAY = 1000; // 1 second before next image
-
-    // Fade out caption
-    function fadeOutCaption() {
-        caption.classList.add('fading');
-    }
-
-    // Fade in caption with new content
-    function fadeInCaption() {
-        const currentSlide = slides[currentIndex];
-        const location = currentSlide.dataset.location || '';
-        const details = currentSlide.dataset.details || '';
-
-        captionLocation.textContent = location;
-        captionDetails.textContent = details;
-        caption.classList.remove('fading');
-    }
-
-    // Schedule caption fade out before next slide
-    function scheduleCaptionFadeOut() {
-        if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
-        // Fade out 1 second before slide changes
-        captionFadeOutTimer = setTimeout(fadeOutCaption, SLIDE_DURATION - CAPTION_FADE_OUT_DELAY);
-    }
-
-    // Reveal a slide (called only once its image is ready)
-    function activateSlide(index) {
-        // Remove active class from all slides
-        slides.forEach(slide => slide.classList.remove('active'));
-
-        // Add active class to current slide
-        slides[index].classList.add('active');
-
-        currentIndex = index;
-
-        // Fade in caption 2 seconds after image starts appearing
-        captionFadeInTimer = setTimeout(fadeInCaption, CAPTION_FADE_IN_DELAY);
-
-        // Schedule fade out for 1 second before next slide
-        scheduleCaptionFadeOut();
-    }
-
-    // Go to a specific slide
-    let navToken = 0;
-    function goToSlide(index) {
-        // Wrap around
-        if (index < 0) index = slides.length - 1;
-        if (index >= slides.length) index = 0;
-
-        // Preload a window of upcoming images
-        preloadWindow(index);
-
-        // Clear any pending caption timers
-        if (captionFadeInTimer) clearTimeout(captionFadeInTimer);
-        if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
-
-        // If the incoming image hasn't finished downloading, keep the current
-        // one on screen and switch only once it's ready — so a slow load never
-        // flashes a blank/broken frame. navToken guards against a stale image
-        // loading after the user has already moved on to another slide.
-        const token = ++navToken;
-        const img = slides[index].querySelector('img');
-        if (img && !(img.complete && img.naturalWidth > 0)) {
-            const reveal = () => { if (token === navToken) activateSlide(index); };
-            img.addEventListener('load', reveal, { once: true });
-            img.addEventListener('error', reveal, { once: true });
-        } else {
-            activateSlide(index);
-        }
-    }
-
-    // Next slide
-    function nextSlide() {
-        goToSlide(currentIndex + 1);
-    }
-
-    // Previous slide
-    function prevSlide() {
-        goToSlide(currentIndex - 1);
-    }
-
-    // Start auto-advance timer
-    function startAutoAdvance() {
-        stopAutoAdvance();
-        autoAdvanceTimer = setInterval(nextSlide, SLIDE_DURATION);
-    }
-
-    // Stop auto-advance timer
-    function stopAutoAdvance() {
-        if (autoAdvanceTimer) {
-            clearInterval(autoAdvanceTimer);
-            autoAdvanceTimer = null;
-        }
-    }
-
-    // Pause auto-advance on user interaction, resume after delay
-    function handleUserInteraction() {
-        stopAutoAdvance();
-        // Clear and reschedule caption fade out
-        if (captionFadeOutTimer) clearTimeout(captionFadeOutTimer);
-        scheduleCaptionFadeOut();
-        setTimeout(startAutoAdvance, SLIDE_DURATION);
-        // Show UI on mobile when user interacts
-        showUI();
-    }
-
-    // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight' || e.key === ' ') {
-            e.preventDefault();
-            nextSlide();
-            handleUserInteraction();
-        } else if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            prevSlide();
-            handleUserInteraction();
-        }
-    });
-
-    // Click on gallery to advance
-    document.addEventListener('click', (e) => {
-        // Don't advance if clicking on hover zones or arrows
-        if (e.target.closest('.hover-zone') || e.target.closest('.arrow')) return;
-        // Don't advance if clicking on header or footer
-        if (e.target.closest('.header') || e.target.closest('.footer')) return;
-
-        // Click on left third goes back, rest goes forward
-        const clickX = e.clientX;
-        const width = window.innerWidth;
-
-        if (clickX < width / 3) {
-            prevSlide();
-        } else {
-            nextSlide();
-        }
-        handleUserInteraction();
-    });
-
-    // Arrow button clicks
-    if (arrowLeft) {
-        arrowLeft.addEventListener('click', (e) => {
-            e.stopPropagation();
-            prevSlide();
-            handleUserInteraction();
-        });
-    }
-
-    if (arrowRight) {
-        arrowRight.addEventListener('click', (e) => {
-            e.stopPropagation();
-            nextSlide();
-            handleUserInteraction();
-        });
-    }
-
-    // Hover zone clicks
-    if (hoverLeft) {
-        hoverLeft.addEventListener('click', (e) => {
-            e.stopPropagation();
-            prevSlide();
-            handleUserInteraction();
-        });
-    }
-
-    if (hoverRight) {
-        hoverRight.addEventListener('click', (e) => {
-            e.stopPropagation();
-            nextSlide();
-            handleUserInteraction();
-        });
-    }
-
-    // Set initial caption with delayed fade in
-    function initializeCaption() {
-        // Start with caption hidden
-        caption.classList.add('fading');
-
-        // Fade in caption 2 seconds after page load
-        captionFadeInTimer = setTimeout(() => {
-            const currentSlide = slides[0];
-            const location = currentSlide.dataset.location || '';
-            const details = currentSlide.dataset.details || '';
-            captionLocation.textContent = location;
-            captionDetails.textContent = details;
-            caption.classList.remove('fading');
-        }, CAPTION_FADE_IN_DELAY);
-
-        // Schedule fade out for first slide
-        scheduleCaptionFadeOut();
-    }
-
-    // Start the slideshow
-    startAutoAdvance();
-
-    // Initialize: caption with delayed fade in
-    initializeCaption();
-
-    // Preload the opening window of images for smooth early transitions
-    preloadWindow(0);
-
-    // Start UI hide timer for mobile
-    resetUIHideTimer();
-});
+  addEventListener('click', e => { advance(e.clientX < innerWidth/3 ? -1 : 1); });
+  addEventListener('keydown', e => {
+    if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); advance(1); }
+    if(e.key==='ArrowLeft'){ e.preventDefault(); advance(-1); }
+  });
+  addEventListener('touchstart', () => advance(1), {passive:true});
+})();

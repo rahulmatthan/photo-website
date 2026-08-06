@@ -1,81 +1,51 @@
 {{ define "main" }}
-<!-- Fixed Header with Logo -->
-<header class="header">
-    <div class="watermark">
-        <span class="watermark-name">Rahul Matthan</span>
-        <span class="watermark-tagline">Photography</span>
-    </div>
-</header>
+{{/* Collect image resources from assets/images/, process to WebP, parse captions from filenames */}}
+{{ $images := slice }}
+{{ range (resources.Match "images/*") }}
+{{ $l := lower .Name }}
+{{ if or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp") }}
+{{ $images = $images | append . }}
+{{ end }}
+{{ end }}
+{{ $images = shuffle $images }}
 
-<!-- Image Display Area -->
-<div class="gallery" id="gallery">
-    {{ $captions := site.Data.captions }}
+{{ $data := slice }}
+{{ range $images }}
+{{ $img := .Fit "2048x2048 webp q80" }}
+{{ $base := path.Base .Name }}
+{{ $noext := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" $base }}
+{{/* Forgiving separator: em-dash (—), en-dash (–), or a space-padded hyphen ( - ) */}}
+{{ $norm := replaceRE "\\s*[—–]\\s*" "—" $noext }}
+{{ $norm = replaceRE "\\s+-\\s+" "—" $norm }}
+{{ $parts := split $norm "—" }}
+{{ $title := trim (index $parts 0) " " }}
+{{ $place := "" }}
+{{ if gt (len $parts) 1 }}{{ $place = trim (index $parts 1) " " }}{{ end }}
+{{ $data = $data | append (dict "src" $img.RelPermalink "title" $title "place" $place) }}
+{{ end }}
 
-    {{/* Collect image resources from assets/images/ (Hugo asset pipeline) */}}
-    {{ $images := slice }}
-    {{ range (resources.Match "images/*") }}
-    {{ $lowerName := lower .Name }}
-    {{ if or (strings.HasSuffix $lowerName ".jpg") (strings.HasSuffix $lowerName ".jpeg") (strings.HasSuffix $lowerName ".png") (strings.HasSuffix $lowerName ".webp") }}
-    {{ $images = $images | append . }}
-    {{ end }}
-    {{ end }}
-
-    {{/* Shuffle images randomly */}}
-    {{ $images = shuffle $images }}
-
-    {{ $imageIndex := 0 }}
-    {{ range $images }}
-    {{/* Resize to a screen-friendly box and convert to WebP so each photo is a
-         fraction of its original weight. Hugo does this once at build time and
-         caches the result; the source file in assets/images/ is untouched. */}}
-    {{ $img := .Fit "2048x2048 webp q80" }}
-
-    {{/* Parse filename for caption: Title—Location, Year.jpg
-         Separator is forgiving — an em-dash (—), en-dash (–), or a hyphen
-         surrounded by spaces ( - ) all work the same way. */}}
-    {{ $base := path.Base .Name }}
-    {{ $baseName := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" $base }}
-    {{/* Normalise any supported separator (with surrounding spaces) to one em-dash */}}
-    {{ $normalized := replaceRE "\\s*[—–]\\s*" "—" $baseName }}
-    {{ $normalized = replaceRE "\\s+-\\s+" "—" $normalized }}
-    {{ $parts := split $normalized "—" }}
-    {{ $hasFilenameCaption := gt (len $parts) 1 }}
-    {{ $caption := index $captions $base }}
-    <div class="slide {{ if eq $imageIndex 0 }}active{{ end }}"
-         data-index="{{ $imageIndex }}"
-         {{ if $hasFilenameCaption }}data-location="{{ index $parts 0 }}" data-details="{{ index $parts 1 }}"{{ else if $caption }}data-location="{{ $caption.location }}" data-details="{{ $caption.details }}"{{ else }}data-location="{{ $baseName }}"{{ end }}>
-        {{/* First image loads immediately, others lazy load */}}
-        {{ if eq $imageIndex 0 }}
-        <img src="{{ $img.RelPermalink }}" width="{{ $img.Width }}" height="{{ $img.Height }}" alt="{{ $base }}">
-        {{ else }}
-        <img data-src="{{ $img.RelPermalink }}" width="{{ $img.Width }}" height="{{ $img.Height }}" alt="{{ $base }}" class="lazy">
-        {{ end }}
-    </div>
-    {{ $imageIndex = add $imageIndex 1 }}
-    {{ end }}
-
-    {{ if eq (len $images) 0 }}
-    <div class="placeholder-msg">
-        <h2>Gallery Empty</h2>
-        <p>No images found in <code>assets/images/</code>.</p>
-        <p>Please drop your .jpg or .png photos directly into the <code>assets/images/</code> folder.</p>
-    </div>
-    {{ end }}
+<div class="stage" id="stage">
+  <div class="layer wall"></div>
+  <div class="layer floor"></div>
+  <div class="layer spot"></div>
+  <div class="layer glow" id="glow"></div>
+  <div class="frameWrap">
+    <figure class="frame"><span class="mat"><img id="photo" alt=""></span></figure>
+    <figcaption class="plate" id="plate"><span class="t" id="capTitle"></span><span class="p" id="capPlace"></span></figcaption>
+  </div>
+  <div class="layer vignette"></div>
+  <div class="layer grain"></div>
+  <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
+  <div class="reveal" id="reveal"></div>
 </div>
 
-<!-- Fixed Footer with Caption -->
-<footer class="footer">
-    <div class="caption" id="caption">
-        <span class="caption-location" id="caption-location"></span>
-        <span class="caption-details" id="caption-details"></span>
-    </div>
-</footer>
+<div class="rotate">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10.5" y1="19" x2="13.5" y2="19"/></svg>
+  <div class="t">Turn your device</div><div class="p">Shown in landscape</div>
+</div>
 
-<!-- Hover Zones for Arrows -->
-<div class="hover-zone hover-zone-left" id="hover-left">
-    <button class="arrow arrow-left" id="arrow-left" aria-label="Previous image">&#8249;</button>
-</div>
-<div class="hover-zone hover-zone-right" id="hover-right">
-    <button class="arrow arrow-right" id="arrow-right" aria-label="Next image">&#8250;</button>
-</div>
+{{ if eq (len $data) 0 }}<div class="empty">Drop photographs into <code>assets/images/</code>.</div>{{ end }}
+
+<canvas id="cv" width="36" height="36" hidden></canvas>
+<script>window.IMAGES = {{ $data | jsonify | safeJS }};</script>
 {{ end }}
