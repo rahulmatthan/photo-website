@@ -66,10 +66,14 @@
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
     else { light=0; if(el>=BLACK){ idx=(idx+pendingDir+N)%N; pendingDir=1; swap(idx); phase='rise'; t0=now; } }
     if(light<=0.02){
-      reveal.style.background='#000';       // solid black at the bottom of the fade (mobile-safe)
+      reveal.style.background='#000';       // solid black at the very bottom of the fade
     } else {
+      // The centre alpha tracks the light level (1 - light), so the whole pool — centre
+      // included — dims to pure black as the light falls, rather than only the ring
+      // closing in. Guarantees a true fade to black even where blur is clamped (mobile).
       const r=light*maxR, rx=(r*1.35).toFixed(1), ry=(r*0.78).toFixed(1);
-      reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 14%, rgba(0,0,0,0.16) 40%, rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.85) 88%, #000 100%)';
+      const a0=1-light, s1=a0.toFixed(3), s2=(a0+(1-a0)*0.30).toFixed(3), s3=(a0+(1-a0)*0.65).toFixed(3);
+      reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,'+s1+') 0%, rgba(0,0,0,'+s1+') 14%, rgba(0,0,0,'+s2+') 42%, rgba(0,0,0,'+s3+') 70%, #000 100%)';
     }
   }
 
