@@ -65,8 +65,12 @@
     else if(phase==='hold'){ light=1; if(el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
     else { light=0; if(el>=BLACK){ idx=(idx+pendingDir+N)%N; pendingDir=1; swap(idx); phase='rise'; t0=now; } }
-    const r=light*maxR, rx=(r*1.35).toFixed(1), ry=(r*0.78).toFixed(1);
-    reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 14%, rgba(0,0,0,0.16) 40%, rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.85) 88%, #000 100%)';
+    if(light<=0.02){
+      reveal.style.background='#000';       // solid black at the bottom of the fade (mobile-safe)
+    } else {
+      const r=light*maxR, rx=(r*1.35).toFixed(1), ry=(r*0.78).toFixed(1);
+      reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 14%, rgba(0,0,0,0.16) 40%, rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.85) 88%, #000 100%)';
+    }
   }
 
   function advance(dir){ if(phase==='rise'||phase==='hold'){ pendingDir=dir; phase='fall'; t0=performance.now(); plate.classList.remove('show'); } }

@@ -55,3 +55,19 @@ main{display:block;}
 @media (orientation:portrait) and (pointer:coarse){.rotate{display:flex;}}
 
 .empty{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:var(--serif);font-style:italic;}
+
+/* Short viewports (landscape phones): the mat/frame/placard overhead is too tall
+   for a short screen, so trim it and shrink the print — keeps the framed piece
+   fully within the viewport, centred, and clear of the wordmark. */
+@media (max-height:640px){
+  #photo{max-height:56vh;max-width:82vw;}
+  .frame{padding:6px;}
+  .mat{padding:12px;}
+  .frameWrap{gap:.8rem;}
+  .plate .t{font-size:1.05rem;}
+  .plate .p{margin-top:.5rem;font-size:.55rem;letter-spacing:.26em;}
+  .plate .p::before{margin-bottom:.45rem;}
+  .wordmark{top:1.6vh;right:2.4vw;}
+  .wordmark .n{font-size:.82rem;}
+  .wordmark .s{font-size:.5rem;letter-spacing:.28em;}
+}
