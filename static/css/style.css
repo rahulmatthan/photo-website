@@ -70,4 +70,46 @@ main{display:block;}
   .wordmark{top:1.6vh;right:2.4vw;}
   .wordmark .n{font-size:.82rem;}
   .wordmark .s{font-size:.5rem;letter-spacing:.28em;}
+  .back{top:1.6vh;left:2.4vw;}
 }
+
+/* ---- the collection cue on a hero's placard (Location · N photographs →) ---- */
+.plate .cue{display:none;margin-top:.85rem;font-family:var(--sans);font-size:.62rem;
+  letter-spacing:.3em;text-transform:uppercase;color:var(--muted);}
+.plate .cue::before{content:"";display:block;width:24px;height:1px;background:var(--muted);opacity:.5;margin:0 auto .8rem;}
+.plate .cue::after{content:"  \2192";opacity:.7;}
+
+/* ---- quiet "back to the collection" control (only inside a room) ---- */
+.back{position:fixed;top:2.8vh;left:3.2vw;z-index:9;border:0;background:transparent;cursor:pointer;
+  font-family:var(--sans);font-size:.62rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);
+  opacity:0;pointer-events:none;transition:opacity .6s ease;text-shadow:0 1px 12px rgba(0,0,0,.7);
+  -webkit-font-smoothing:antialiased;}
+.back.avail{opacity:.55;pointer-events:auto;}
+.back.avail:hover{opacity:.9;}
+
+/* ---- "sitting" indicator ---- */
+.sit{position:fixed;left:50%;bottom:3vh;transform:translateX(-50%);z-index:9;
+  font-size:.7rem;letter-spacing:.3em;color:var(--muted);opacity:0;transition:opacity .8s ease;
+  text-shadow:0 1px 12px rgba(0,0,0,.7);pointer-events:none;}
+.sit.show{opacity:.5;}
+
+/* ---- idle: fade the quiet chrome + cursor after stillness ---- */
+.wordmark{transition:opacity .6s ease;}
+body.ui-hidden{cursor:none;}
+body.ui-hidden .wordmark,body.ui-hidden .back{opacity:0 !important;}
+
+/* ---- the entry / title wall ---- */
+.entry{position:fixed;inset:0;z-index:12;background:#000;display:flex;align-items:center;justify-content:center;
+  transition:opacity 1.8s ease;}
+.entry.gone{opacity:0;pointer-events:none;}
+.entry-inner{position:relative;text-align:center;padding:0 6vw;}
+.entry-inner::before{content:"";position:absolute;left:50%;top:-45%;transform:translateX(-50%);
+  width:130%;height:200%;z-index:-1;pointer-events:none;
+  background:radial-gradient(58% 44% at 50% 30%, rgba(255,244,224,.10), transparent 70%);}
+.entry .ename{display:block;font-family:var(--serif);font-size:clamp(2rem,6vw,4.4rem);letter-spacing:.01em;
+  color:#e9e0d0;text-shadow:0 1px 0 rgba(255,247,232,.12),0 -1px 0 rgba(0,0,0,.55),0 20px 60px rgba(0,0,0,.75);}
+.entry .etag{display:block;margin-top:1.1rem;font-family:var(--sans);font-size:.66rem;letter-spacing:.42em;
+  text-transform:uppercase;color:var(--muted);}
+.entry .ehint{display:block;margin-top:3.4rem;font-family:var(--sans);font-size:.6rem;letter-spacing:.32em;
+  text-transform:uppercase;color:#6e6353;animation:ebreathe 3.6s ease-in-out infinite;}
+@keyframes ebreathe{0%,100%{opacity:.22}50%{opacity:.6}}

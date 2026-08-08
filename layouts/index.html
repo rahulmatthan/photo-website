@@ -1,28 +1,47 @@
 {{ define "main" }}
-{{/* Collect image resources from assets/images/, process to WebP, parse captions from filenames */}}
-{{ $images := slice }}
-{{ range (resources.Match "images/*") }}
+{{/* Discover location folders under assets/images/<location>/ */}}
+{{ $keys := slice }}
+{{ range (resources.Match "images/*/*") }}
 {{ $l := lower .Name }}
 {{ if or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp") }}
-{{ $images = $images | append . }}
+{{ $keys = $keys | append (path.Base (path.Dir .Name)) }}
 {{ end }}
 {{ end }}
-{{ $images = shuffle $images }}
+{{ $keys = uniq $keys }}
 
-{{ $data := slice }}
-{{ range $images }}
+{{ $rooms := slice }}
+{{ range $keys }}
+{{ $key := . }}
+{{ $imgs := slice }}
+{{ range (resources.Match (printf "images/%s/*" $key)) }}
+{{ $l := lower .Name }}
+{{ if or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp") }}
+{{ $imgs = $imgs | append . }}
+{{ end }}
+{{ end }}
+{{ $photos := slice }}
+{{ $heroIdx := 0 }}
+{{ $i := 0 }}
+{{ range $imgs }}
 {{ $img := .Fit "2048x2048 webp q80" }}
 {{ $base := path.Base .Name }}
-{{ $noext := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" $base }}
-{{/* Forgiving separator: em-dash (—), en-dash (–), or a space-padded hyphen ( - ) */}}
+{{ $isHero := hasPrefix $base "_" }}
+{{ $clean := cond $isHero (substr $base 1) $base }}
+{{ $noext := replaceRE "(?i)\\.(jpg|jpeg|png|webp)$" "" $clean }}
 {{ $norm := replaceRE "\\s*[—–]\\s*" "—" $noext }}
 {{ $norm = replaceRE "\\s+-\\s+" "—" $norm }}
 {{ $parts := split $norm "—" }}
 {{ $title := trim (index $parts 0) " " }}
 {{ $place := "" }}
 {{ if gt (len $parts) 1 }}{{ $place = trim (index $parts 1) " " }}{{ end }}
-{{ $data = $data | append (dict "src" $img.RelPermalink "title" $title "place" $place) }}
+{{ $photos = $photos | append (dict "src" $img.RelPermalink "title" $title "place" $place) }}
+{{ if $isHero }}{{ $heroIdx = $i }}{{ end }}
+{{ $i = add $i 1 }}
 {{ end }}
+{{ $roomTitle := $key | replaceRE "-" " " | title }}
+{{ $rooms = $rooms | append (dict "key" $key "title" $roomTitle "count" (len $photos) "heroIdx" $heroIdx "photos" $photos) }}
+{{ end }}
+{{ $rooms = shuffle $rooms }}
 
 <div class="stage" id="stage">
   <div class="layer wall"></div>
@@ -31,7 +50,11 @@
   <div class="layer glow" id="glow"></div>
   <div class="frameWrap">
     <figure class="frame"><span class="mat"><img id="photo" alt=""></span></figure>
-    <figcaption class="plate" id="plate"><span class="t" id="capTitle"></span><span class="p" id="capPlace"></span></figcaption>
+    <figcaption class="plate" id="plate">
+      <span class="t" id="capTitle"></span>
+      <span class="p" id="capPlace"></span>
+      <span class="cue" id="capCue"></span>
+    </figcaption>
   </div>
   <div class="layer vignette"></div>
   <div class="layer grain"></div>
@@ -39,13 +62,24 @@
   <div class="reveal" id="reveal"></div>
 </div>
 
+<button class="back" id="back">← the collection</button>
+<div class="sit" id="sit">❙❙</div>
+
+<div class="entry" id="entry">
+  <div class="entry-inner">
+    <span class="ename">Rahul Matthan</span>
+    <span class="etag">Photographs</span>
+    <span class="ehint">tap to enter</span>
+  </div>
+</div>
+
 <div class="rotate">
   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10.5" y1="19" x2="13.5" y2="19"/></svg>
   <div class="t">Turn your device</div><div class="p">Shown in landscape</div>
 </div>
 
-{{ if eq (len $data) 0 }}<div class="empty">Drop photographs into <code>assets/images/</code>.</div>{{ end }}
+{{ if eq (len $rooms) 0 }}<div class="empty">Add location folders of photographs under <code>assets/images/</code>.</div>{{ end }}
 
 <canvas id="cv" width="36" height="36" hidden></canvas>
-<script>window.IMAGES = {{ $data | jsonify | safeJS }};</script>
+<script>window.GALLERY = {{ (dict "rooms" $rooms) | jsonify | safeJS }};</script>
 {{ end }}

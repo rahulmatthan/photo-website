@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Photography portfolio website built with Hugo. Presents each photograph as a framed, matted print hung on a dark wall — a gallery spotlight rises from pure black onto the print, holds while it's viewed, then dims fully to black before the light rises on the next photograph. Concept codename: "The Hide". Captions are parsed from filenames and shown as a centred gallery placard.
+Photography portfolio website built with Hugo. A gallery experience: each photograph is a framed, matted print hung on a dark wall — a gallery spotlight rises from pure black onto the print, holds while it's viewed, then dims fully to black before the light rises on the next. Two levels: a **collection wall** cycles one hero print per location; tapping a print **enters that location's room** of photographs (which cycles then returns to the wall on its own); tapping inside a room **"sits"** (holds the light). An entry **title wall** opens the experience. Everything is deliberately slow, for an unhurried, premium feel.
 
 ## Commands
 
@@ -23,10 +23,10 @@ hugo
 
 ### Layout Structure
 - `layouts/_default/baseof.html` - Base template with minimal structure
-- `layouts/index.html` - Homepage that reads images from `assets/images/`, resizes/optimizes them via Hugo's image pipeline, shuffles them, and emits the room DOM plus a `window.IMAGES` JS array (`{src, title, place}` per photo) via `jsonify | safeJS`
+- `layouts/index.html` - Reads the **location folders** under `assets/images/<location>/`, processes each image via Hugo's pipeline, and emits `window.GALLERY = {rooms:[{key, title, count, heroIdx, photos:[{src,title,place}]}]}` via `jsonify | safeJS`. Room title = prettified folder name; the hero is the image whose filename starts with `_` (stripped for display), else the first.
 
 ### Images & Optimization
-Photos live in `assets/images/` (Hugo's asset pipeline, **not** `static/`). At build time each image is fit within a 2048px box, converted to WebP at quality 80, and cached — the source files are left untouched. To add a photo, drop a correctly-named file into `assets/images/`. Tune the size/quality via the `.Fit "2048x2048 webp q80"` call in `layouts/index.html`.
+Photos live in **location folders**: `assets/images/<location>/` (e.g. `kabini/`, `masai-mara/`) — one folder per room. Drop your curated selects for a place into its folder; count per room is free. Mark the room's hero (shown on the collection wall) by prefixing its filename with `_`. Each image is fit within a 2048px box, converted to WebP q80, and cached — sources untouched. Tune via `.Fit "2048x2048 webp q80"` in `layouts/index.html`.
 
 ### Image Captions
 Captions are parsed from the filename, split on a forgiving separator — an em-dash (`—`), en-dash (`–`), or a hyphen surrounded by spaces (` - `) all work:
@@ -41,7 +41,7 @@ If no separator is found, the whole filename is shown as the caption (so mistake
 
 ### Frontend — "The Hide" gallery spotlight
 - `static/css/style.css` - The dark room: warm wall gradient, spotlight/glow layers (glow tinted per-image via `--dom`), a framed print (`.frame` moulding → `.mat` passe-partout → `#photo` at its native aspect), a centred gallery placard (`.plate` — italic-serif title, hairline rule, tracked-caps place/year), the wordmark, and `.reveal` (the light: an oversized, heavily-blurred radial-ellipse mask). Landscape-only on touch devices in portrait (rotate prompt).
-- `static/js/main.js` - Reads `window.IMAGES`. A light-level state machine (rise → hold → fall → **pure-black** gap) drives `.reveal`'s radial-ellipse gradient so the light blooms from the image centre outward and retreats to true #000; the photo swaps during the black beat. Dominant colour for the glow is sampled from a 36×36 canvas. Images are **bounded-preloaded** (current + next only), so per-visit bandwidth stays constant at any library size. Click / arrow keys / touch advance early. Timings: RISE/FALL 3s, HOLD 5.2s.
+- `static/js/main.js` - Reads `window.GALLERY`. A two-level state machine (`mode` = entry / wall / room) plus a light-level cycle (rise → hold → fall → **pure-black** gap) that drives `.reveal`'s radial-ellipse gradient; the pool blooms from centre and its centre alpha tracks `1-light` so it reaches true #000 (mobile-safe). The photo swaps during the black beat, applying a pending action (next / prev / enter / back). Tap: on the wall enters a room, in a room "sits"; `.back` / Esc returns; arrows step. Dominant glow colour sampled from a 36×36 canvas; images **bounded-preloaded** (current + next). Slow/premium timings: RISE/FALL 4s, HOLD 7s, black 1.1s (a `prefers-reduced-motion` fast path exists).
 
 ### Deployment
 GitHub Actions workflow (`.github/workflows/hugo.yaml`) builds and deploys to GitHub Pages on push to `main`. Custom domain: photos.rahulmatthan.com
