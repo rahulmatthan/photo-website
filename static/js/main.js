@@ -7,7 +7,7 @@
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'),
-        capCue=$('capCue'), reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit');
+        capCue=$('capCue'), reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!rooms.length || !reveal){ return; }
@@ -86,12 +86,15 @@
     const c = current();
     photo.src = c.src;
     document.documentElement.style.setProperty('--dom', dom[c.src] || '#caa46a');
-    capTitle.textContent = c.title || '';
     if(mode==='wall'){
-      capPlace.style.display='none';
-      capCue.textContent = c.cue; capCue.style.display='';
+      // the collection wall shows no title — just the location, as a link that
+      // fades in on cursor movement and clicks into the room.
+      document.body.classList.add('wall');
+      locLink.textContent = rooms[wallIdx].title;
     } else {
-      capCue.style.display='none';
+      document.body.classList.remove('wall');
+      capTitle.textContent = c.title || '';
+      capCue.style.display = 'none';
       capPlace.textContent = c.place || ''; capPlace.style.display = c.place ? '' : 'none';
     }
     back.classList.toggle('avail', mode==='room');
@@ -109,7 +112,7 @@
     requestAnimationFrame(loop);
     if(!started){ return; }
     const el = now - t0; let light;
-    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
+    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; if(mode==='room') plate.classList.add('show'); } }
     else if(phase==='hold'){ light=1; if(!sitting && el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
     else { light=0; if(el>=BLACK){ applyStep(); swapToCurrent(); phase='rise'; t0=now; } }

@@ -113,3 +113,16 @@ body.ui-hidden .wordmark,body.ui-hidden .back{opacity:0 !important;}
 .entry .ehint{display:block;margin-top:3.4rem;font-family:var(--sans);font-size:.6rem;letter-spacing:.32em;
   text-transform:uppercase;color:#6e6353;animation:ebreathe 3.6s ease-in-out infinite;}
 @keyframes ebreathe{0%,100%{opacity:.22}50%{opacity:.6}}
+
+/* ---- collection wall: the location, as a link that fades in on cursor movement ---- */
+.locLink{display:block;background:transparent;border:0;padding:0;cursor:pointer;
+  font-family:var(--serif);font-size:clamp(1.1rem,2vw,1.5rem);letter-spacing:.02em;color:var(--ink);
+  opacity:0;transition:opacity 1.5s ease,color .35s ease;-webkit-font-smoothing:antialiased;
+  text-shadow:0 1px 14px rgba(0,0,0,.7);}
+.locLink::after{content:"";display:block;width:0;height:1px;margin:.55rem auto 0;background:var(--ink);opacity:.55;transition:width .55s ease;}
+.locLink:hover{color:#fff;}
+.locLink:hover::after{width:2.4rem;}
+/* the link belongs to the wall only, and appears when the cursor is active */
+body:not(.wall) .locLink{display:none;}
+body.wall .plate{display:none;}
+body.wall:not(.ui-hidden) .locLink{opacity:.9;}
