@@ -74,6 +74,7 @@
   function renderStrip(){
     const spacing = cardW * GAP;
     const R = cardW * 4.2;         // arc radius — larger = looser/gentler curve
+    const DEPTH = cardW * 0.26;    // how much the plates recede as they leave (subtle)
     for(let i=0;i<cards.length;i++){
       const o=i-center, ab=Math.abs(o);
       const card=cards[i];
@@ -81,9 +82,10 @@
       const tx = o*spacing;                                  // even horizontal glide
       const txc = Math.min(Math.abs(tx), R*0.985);
       const ty = -(R - Math.sqrt(R*R - txc*txc));            // gentle rise toward the sides; centre lowest
-      const sc = 1 - Math.min(ab,3)*0.02;                    // barely smaller as they recede
+      const tz = -ab*DEPTH;                                  // ease back into depth (perspective shrinks them)
+      const ry = Math.max(-15, Math.min(15, o*7));           // a hint of turn — outer edge wraps back (convex)
       const op = ab<2 ? 1 : Math.max(0, 1-(ab-2)*0.9);       // fade as they scroll off the edge
-      card.style.transform='translate(-50%,-50%) translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) scale('+sc.toFixed(3)+')';
+      card.style.transform='translate(-50%,-50%) translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg)';
       card.style.opacity=op.toFixed(3);
       card.style.zIndex=String(200-Math.round(ab*10));       // the main plate sits on top
       const isCenter = ab<0.5;
