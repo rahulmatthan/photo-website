@@ -17,27 +17,41 @@ body.strip .book{display:block;}
 .book.gone{opacity:0;pointer-events:none;}
 .book-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;perspective:2600px;}
 .spread{position:relative;height:min(80vh,56vw);aspect-ratio:3/2;transform-style:preserve-3d;}
-/* a cream leaf of the book, with a faint centre fold; the image sits centred at its full aspect ratio */
+/* a cream leaf: image area on top, a reserved caption band at the bottom (flex column,
+   so the image is always sized to sit above the text with a margin — never overlapping) */
 .sheet,.leaf-face{position:absolute;inset:0;overflow:hidden;border-radius:3px;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;
   background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);box-shadow:0 30px 70px rgba(0,0,0,.55);}
-.sheet::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:16%;transform:translateX(-50%);pointer-events:none;
-  background:linear-gradient(90deg,rgba(54,40,18,0),rgba(54,40,18,.05) 46%,rgba(54,40,18,.085) 50%,rgba(54,40,18,.05) 54%,rgba(54,40,18,0));}
-.pimg{position:absolute;top:47%;left:50%;transform:translate(-50%,-50%);
-  max-width:90%;max-height:80%;width:auto;height:auto;object-fit:contain;cursor:pointer;
-  box-shadow:0 8px 26px rgba(0,0,0,.32);}
-.cap{position:absolute;left:6%;bottom:5.5%;text-align:left;}
+.art{position:relative;flex:1 1 auto;min-height:0;margin:4.5% 5% 2.5%;}
+.pimg{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;width:auto;height:auto;
+  object-fit:contain;cursor:pointer;box-shadow:0 8px 26px rgba(0,0,0,.3);}
+.cap{flex:0 0 auto;text-align:center;padding:0 8% 5.5%;}
 .cap .loc{display:block;font-family:var(--serif);font-size:clamp(1rem,1.7vw,1.4rem);color:#2b2116;letter-spacing:.01em;}
 .cap .sub{display:block;margin-top:.3rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.28em;text-transform:uppercase;color:#8b7451;}
-.cap .enter{display:inline-block;margin-top:.8rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.26em;text-transform:uppercase;
+.cap .enter{display:inline-block;margin-top:.75rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.26em;text-transform:uppercase;
   color:#6c583c;cursor:pointer;opacity:.85;transition:opacity .4s ease;}
 .cap .enter:hover{opacity:1;}
 .cap .enter::after{content:"  \2192";}
-/* the flipping leaf turns the whole page — image included — around the spine edge, so the image
-   turns with the page in BOTH directions. backface-visibility hides it past 90° to reveal the next. */
-.leaf{position:absolute;inset:0;z-index:8;transform-style:preserve-3d;pointer-events:none;transform-origin:0 50%;
-  transition:transform var(--flip,1200ms) cubic-bezier(.42,.04,.24,1);will-change:transform;}
+/* the flipping leaf turns the whole page around the spine edge (image turns both ways). A keyframe
+   flip adds a gentle lift + a shadow that sweeps across the fold, so it curls a little instead of
+   snapping flat. backface-visibility hides it past 90° to reveal the next page beneath. */
+.leaf{position:absolute;inset:0;z-index:8;transform-style:preserve-3d;pointer-events:none;transform-origin:0 50%;will-change:transform;}
 .leaf.hidden{display:none;}
+.leaf.fwd{animation:pageFwd var(--flip,1200ms) cubic-bezier(.37,.06,.23,1) forwards;}
+.leaf.bwd{animation:pageBwd var(--flip,1200ms) cubic-bezier(.37,.06,.23,1) forwards;}
 .leaf-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.leaf-face::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;border-radius:3px;
+  background:linear-gradient(102deg, rgba(24,16,5,0) 50%, rgba(24,16,5,.14) 84%, rgba(24,16,5,.30) 100%);}
+.leaf.fwd .leaf-face::after,.leaf.bwd .leaf-face::after{animation:curlShade var(--flip,1200ms) ease-in-out forwards;}
+@keyframes pageFwd{
+  0%{transform:rotateY(0deg) translateZ(0)}
+  50%{transform:rotateY(-90deg) translateZ(30px) rotateZ(-1.6deg)}
+  100%{transform:rotateY(-180deg) translateZ(0)}}
+@keyframes pageBwd{
+  0%{transform:rotateY(-180deg) translateZ(0)}
+  50%{transform:rotateY(-90deg) translateZ(30px) rotateZ(1.6deg)}
+  100%{transform:rotateY(0deg) translateZ(0)}}
+@keyframes curlShade{0%{opacity:0}46%{opacity:1}100%{opacity:0}}
 
 .strip-hint{position:absolute;left:0;right:0;bottom:3.6vh;text-align:center;z-index:20;pointer-events:none;
   font-family:var(--sans);font-size:.58rem;letter-spacing:.28em;text-transform:uppercase;color:#6e6353;

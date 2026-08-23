@@ -55,7 +55,7 @@
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // one leaf of the book: the photograph centred at full aspect, plus a small caption
   function sheetHTML(rm){ const h=heroOf(rm);
-    return '<img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'">'
+    return '<div class="art"><img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'
       +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
       +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
@@ -77,24 +77,21 @@
     const j=bookIdx+dir;
     if(j<0 || j>rooms.length-1) return;
     flipping=true;
-    leaf.className='leaf';
     if(dir>0){
       leafFront.innerHTML=sheetHTML(rooms[bookIdx]);        // current page rides the leaf, turns away
       sheet.innerHTML=sheetHTML(rooms[j]);                  // next page revealed beneath
-      leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
-      leaf.style.transform='rotateY(-180deg)';
+      leaf.className='leaf fwd';                            // keyframe flip (with a little curl)
     } else {
       leafFront.innerHTML=sheetHTML(rooms[j]);              // previous page swings back in
       sheet.innerHTML=sheetHTML(rooms[bookIdx]);            // current stays beneath until covered
-      leaf.style.transform='rotateY(-180deg)'; void leaf.offsetWidth;
-      leaf.style.transform='rotateY(0deg)';
+      leaf.className='leaf bwd';
     }
     let done=false;
     const finish=()=>{ if(done) return; done=true;
-      leaf.removeEventListener('transitionend',finish);
-      showSpread(j); leaf.className='leaf hidden'; leaf.style.transform=''; flipping=false; };
-    leaf.addEventListener('transitionend',finish);
-    setTimeout(finish, FLIP+260);                           // safety net if transitionend is missed
+      leaf.removeEventListener('animationend',finish);
+      showSpread(j); leaf.className='leaf hidden'; flipping=false; };
+    leaf.addEventListener('animationend',finish);
+    setTimeout(finish, FLIP+300);                           // safety net if animationend is missed
   }
 
   // input: swipe / two-finger scroll to turn; tap a plate or "enter" cue to open the room
