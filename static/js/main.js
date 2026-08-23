@@ -55,10 +55,12 @@
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // one leaf of the book: the photograph centred at full aspect, plus a small caption
   function sheetHTML(rm){ const h=heroOf(rm);
-    return '<div class="art"><img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'
+    return '<div class="head"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>'
+      +'<div class="art"><img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'
       +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
-      +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
+      +'<span class="enter" data-enter="1">enter the gallery</span></div>'
+      +'<span class="curl" aria-hidden="true"></span>'; }
 
   let bookIdx=0, flipping=false, wheelLock=false;
   function showSpread(i){

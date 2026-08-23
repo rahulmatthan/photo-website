@@ -1,6 +1,7 @@
 :root{--wall-1:#141009;--wall-2:#080605;--ink:#ece4d4;--muted:#9a8c78;
   --serif:"Hoefler Text","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   --sans:ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --copper:"Copperplate","Copperplate Gothic Light","Copperplate Gothic",Optima,"Big Caslon",var(--serif);
   --dom:#caa46a;--spot:255,244,224;}
 *{box-sizing:border-box;}
 html,body{height:100%;margin:0;}
@@ -22,16 +23,30 @@ body.strip .book{display:block;}
 .sheet,.leaf-face{position:absolute;inset:0;overflow:hidden;border-radius:3px;-webkit-font-smoothing:antialiased;
   display:flex;flex-direction:column;
   background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);box-shadow:0 30px 70px rgba(0,0,0,.55);}
-.art{position:relative;flex:1 1 auto;min-height:0;margin:4.5% 5% 2.5%;}
+/* subtle laid-paper texture so the leaf feels organic, not flat */
+.sheet::before,.leaf-face::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:overlay;opacity:.72;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px 180px;}
+/* letterhead — printed top-right like a fine catalogue */
+.head{position:relative;z-index:1;flex:0 0 auto;text-align:right;padding:3.4% 6% 0;}
+.head .n{display:block;font-family:var(--copper);font-size:clamp(.72rem,1.15vw,1rem);letter-spacing:.14em;text-transform:uppercase;color:#3a2c1a;}
+.head .s{display:block;margin-top:.28rem;font-family:var(--sans);font-size:.46rem;letter-spacing:.34em;text-transform:uppercase;color:#8b7451;}
+.art{position:relative;z-index:1;flex:1 1 auto;min-height:0;margin:2.6% 5% 2.5%;}
 .pimg{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;width:auto;height:auto;
   object-fit:contain;cursor:pointer;box-shadow:0 8px 26px rgba(0,0,0,.3);}
-.cap{flex:0 0 auto;text-align:center;padding:0 8% 5.5%;}
-.cap .loc{display:block;font-family:var(--serif);font-size:clamp(1rem,1.7vw,1.4rem);color:#2b2116;letter-spacing:.01em;}
-.cap .sub{display:block;margin-top:.3rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.28em;text-transform:uppercase;color:#8b7451;}
+.cap{position:relative;z-index:1;flex:0 0 auto;text-align:center;padding:0 8% 5.5%;}
+.cap .loc{display:block;font-family:var(--copper);font-size:clamp(1rem,1.7vw,1.4rem);letter-spacing:.1em;text-transform:uppercase;color:#2b2116;}
+.cap .sub{display:block;margin-top:.5rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.28em;text-transform:uppercase;color:#8b7451;}
 .cap .enter{display:inline-block;margin-top:.75rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.26em;text-transform:uppercase;
   color:#6c583c;cursor:pointer;opacity:.85;transition:opacity .4s ease;}
 .cap .enter:hover{opacity:1;}
 .cap .enter::after{content:"  \2192";}
+/* a curled bottom-right corner — the paper lifting, so the leaf reads as a real page, not a board */
+.curl{position:absolute;right:0;bottom:0;z-index:2;pointer-events:none;
+  width:clamp(30px,3.4vw,50px);height:clamp(30px,3.4vw,50px);border-bottom-right-radius:4px;
+  clip-path:polygon(100% 0,100% 100%,0 100%);
+  background:linear-gradient(135deg,rgba(0,0,0,0) 40%,rgba(86,68,38,.5) 46%,#efe6d0 52%,#fbf5e7 64%,#e7dcc2 100%);
+  box-shadow:-5px -5px 12px -4px rgba(0,0,0,.32);}
 /* the flipping leaf turns the whole page around the spine edge (image turns both ways). A keyframe
    flip adds a gentle lift + a shadow that sweeps across the fold, so it curls a little instead of
    snapping flat. backface-visibility hides it past 90° to reveal the next page beneath. */
