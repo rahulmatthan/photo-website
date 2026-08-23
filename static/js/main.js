@@ -54,7 +54,7 @@
   document.documentElement.style.setProperty('--flip', FLIP+'ms');
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function plateHTML(rm){ const h=heroOf(rm);
-    return '<div class="plateFig"><figure class="mount"><img src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></figure></div>'; }
+    return '<div class="plateFig"><img class="wc" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'; }
   function labelHTML(rm){
     return '<div class="leafLabel"><span class="loc">'+esc(rm.title)+'</span><span class="rule"></span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
@@ -63,8 +63,8 @@
   let bookIdx=0, flipping=false, wheelLock=false;
   function showSpread(i){
     bookIdx=clampC(i);
-    pageL.innerHTML=plateHTML(rooms[bookIdx]);
-    pageR.innerHTML=labelHTML(rooms[bookIdx]);
+    pageL.innerHTML=labelHTML(rooms[bookIdx]);             // label on the left
+    pageR.innerHTML=plateHTML(rooms[bookIdx]);             // image on the right (the page that turns)
     preloadSrc(heroOf(rooms[bookIdx]).src);                 // warm current + neighbours for quick flips
     if(rooms[bookIdx+1]) preloadSrc(heroOf(rooms[bookIdx+1]).src);
     if(rooms[bookIdx-1]) preloadSrc(heroOf(rooms[bookIdx-1]).src);
@@ -79,16 +79,16 @@
     flipping=true;
     if(dir>0){
       leaf.className='leaf fwd';
-      leafFront.innerHTML=labelHTML(rooms[bookIdx]);        // current right page
-      leafBack.innerHTML =plateHTML(rooms[j]);              // becomes the new left page
-      pageR.innerHTML=labelHTML(rooms[j]);                  // revealed as the leaf lifts
+      leafFront.innerHTML=plateHTML(rooms[bookIdx]);        // the current IMAGE turns with the page
+      leafBack.innerHTML =labelHTML(rooms[j]);              // its back becomes the new left label
+      pageR.innerHTML=plateHTML(rooms[j]);                  // the next image is revealed beneath
       leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
       leaf.style.transform='rotateY(-180deg)';
     } else {
       leaf.className='leaf bwd';
-      leafFront.innerHTML=plateHTML(rooms[bookIdx]);        // current left page
-      leafBack.innerHTML =labelHTML(rooms[j]);              // becomes the new right page
-      pageL.innerHTML=plateHTML(rooms[j]);                  // revealed as the leaf lifts
+      leafFront.innerHTML=labelHTML(rooms[bookIdx]);        // going back: the label page turns
+      leafBack.innerHTML =plateHTML(rooms[j]);              // its back becomes the previous image
+      pageL.innerHTML=labelHTML(rooms[j]);                  // the previous label revealed beneath
       leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
       leaf.style.transform='rotateY(180deg)';
     }
