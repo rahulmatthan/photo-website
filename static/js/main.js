@@ -156,7 +156,7 @@
     if(mode!=='room'){ roomRunning=false; return; }
     requestAnimationFrame(roomLoop);
     const el=now-t0; let light;
-    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(msgShown && light>0.16){ enterMsg.classList.remove('show'); msgShown=false; } if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
+    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
     else if(phase==='hold'){ light=1; if(!sitting && el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
     else {
@@ -172,21 +172,38 @@
   function goFall(){ if(phase==='rise'||phase==='hold'){ phase='fall'; t0=performance.now(); plate.classList.remove('show'); setSit(false); } }
   function setSit(on){ sitting=on; sitEl.classList.toggle('show', on && mode==='room' && phase==='hold'); if(!on) t0=performance.now(); }
 
+  let enterTimers=[];
+  function clearEnterTimers(){ enterTimers.forEach(clearTimeout); enterTimers=[]; }
+  function startRoom(i){
+    setMode('room'); currentRoom=rooms[i]; roomFrom=i; roomIdx=0; pendingExit=false; sitting=false;
+    preloadSrc(currentRoom.photos[0].src);   // dominant colour resolves on load; glow uses a fallback until then
+    swapRoom(); phase='rise'; t0=performance.now();
+    if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
+  }
+  // A slow, deliberate entry: strip -> black, settle, title fades in, then the
+  // subtitle, both breathe, fade to black, wait in darkness, then the print rises.
+  const FADE_TXT = 2000;   // matches the CSS opacity transition on .h / .p
   function enterRoom(i){
+    clearEnterTimers();
     enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
-    enterMsg.classList.add('show'); msgShown=true;
-    filmstrip.classList.add('gone');
-    setTimeout(() => {
-      setMode('room'); currentRoom=rooms[i]; roomFrom=i; roomIdx=0; pendingExit=false; sitting=false;
-      preloadSrc(currentRoom.photos[0].src);   // dominant colour resolves on load; glow uses a fallback until then
-      swapRoom(); phase='rise'; t0=performance.now();
-      if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
-    }, reduce?60:900);
+    enterMsg.classList.remove('h-in','p-in');
+    filmstrip.classList.add('gone');                       // 1. strip fades to black (1.3s)
+    const T = reduce
+      ? { pre:500,  subDelay:400,  hold:500,  black:400 }
+      : { pre:1800, subDelay:1600, hold:1600, black:1300 };
+    let t = T.pre;                                          // black settled before any text
+    enterTimers.push(setTimeout(()=>enterMsg.classList.add('h-in'), t));           // 2. title fades in
+    t += T.subDelay;
+    enterTimers.push(setTimeout(()=>enterMsg.classList.add('p-in'), t));           // 3. subtitle fades in, after the title
+    t += FADE_TXT + T.hold;                                 // wait for subtitle to arrive, then breathe
+    enterTimers.push(setTimeout(()=>enterMsg.classList.remove('h-in','p-in'), t)); // 4. message fades to black
+    t += FADE_TXT + T.black;                                // wait for it to fade out, then a beat of pure black
+    enterTimers.push(setTimeout(()=>startRoom(i), t));      // 5. the first print rises
   }
   function exitToStrip(){ if(mode!=='room') return; pendingExit=true; goFall(); }
   function finishExit(){
     roomRunning=false; back.classList.remove('avail'); plate.classList.remove('show');
-    enterMsg.classList.remove('show'); msgShown=false;
+    clearEnterTimers(); enterMsg.classList.remove('h-in','p-in');
     setMode('strip');
     center=targetCenter=roomFrom; lastLabel=-1; renderStrip(); updateLabel();
     filmstrip.classList.remove('gone');
