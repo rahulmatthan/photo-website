@@ -61,28 +61,33 @@
     });
   });
 
-  let center=0, targetCenter=0, dragging=false, startX=0, startCenter=0, stripMoved=false,
-      spacing=460, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false, wheeling=false, wheelTO=null;
+  let center=0, targetCenter=0, dragging=false, startX=0, startY=0, startCenter=0, stripMoved=false,
+      spacing=460, cardH=380, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false, wheeling=false, wheelTO=null;
   const DRIFT_MS = reduce ? 1e12 : 9000;
 
-  function computeSpacing(){ const cw = cards[0] ? cards[0].offsetWidth : 460; spacing = cw*1.16; }  // >1 = a gap between plates, no overlap
+  function computeSpacing(){ if(cards[0]) cardH = cards[0].offsetHeight; }
+  // ROLODEX DRUM: plates ride around a horizontal axle. The current plate faces
+  // you at the front; upcoming plates curve up-and-back into a fanned deck; the
+  // plate you just left swings down-and-back BEHIND the front one — which is
+  // opaque and occludes it, so there's no see-through and no slide-past "jump".
+  const STEP = 27;                 // degrees between plates on the drum
   function renderStrip(){
+    const RAD = cardH * 1.35;      // drum radius (scales with plate size)
     for(let i=0;i<cards.length;i++){
       const o=i-center, ab=Math.abs(o);
       const card=cards[i];
-      if(ab>3.2){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
-      const scale=Math.max(0.6, 1-ab*0.14);
-      // near plates stay fully opaque (solid); only the far ones fade out, so you
-      // never see the next plate through the one in front.
-      const op = ab<2.2 ? 1 : Math.max(0, 1-(ab-2.2)*0.9);
-      // spaced out + shallow depth so plates never overlap -> no z-order "jump"
-      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-14, tz=-ab*45;
-      const rz=Math.max(-4, Math.min(4, o*-1.6));   // gentle leafed-page tilt; centre straightens
-      card.style.transform='translate(-50%,-50%) translateX('+tx.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg) rotateZ('+rz.toFixed(2)+'deg) scale('+scale.toFixed(3)+')';
+      if(o < -1.7 || o > 3.6){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
+      const ang = o*STEP;                                   // degrees around the axle
+      // central plates stay fully opaque so nothing shows through mid-flip;
+      // only the far tail of the deck fades gently into depth.
+      const op = ab<1.5 ? 1 : Math.max(0, 1-(ab-1.5)*0.75);
+      const z = 140 + Math.round(Math.cos(ang*Math.PI/180)*100);  // front (ang 0) always highest
+      card.style.transform='translate(-50%,-50%) translateZ('+(-RAD).toFixed(1)+'px) rotateX('+ang.toFixed(2)+'deg) translateZ('+RAD.toFixed(1)+'px)';
       card.style.opacity=op.toFixed(3);
-      card.style.zIndex=String(100-Math.round(ab*10));
-      card.style.pointerEvents = ab<1.5 ? 'auto' : 'none';
-      card.classList.toggle('center', ab<0.5);
+      card.style.zIndex=String(z);
+      const isCenter = ab<0.5;
+      card.style.pointerEvents = isCenter ? 'auto' : 'none';
+      card.classList.toggle('center', isCenter);
     }
   }
   let lastLabel=-1;
@@ -115,12 +120,16 @@
   // drag (no pointer capture — capture would steal the pointerup and kill the card click)
   stripStage.addEventListener('pointerdown', e => {
     if(mode!=='strip') return;
-    dragging=true; stripMoved=false; startX=e.clientX; startCenter=center; pauseDrift();
+    dragging=true; stripMoved=false; startX=e.clientX; startY=e.clientY; startCenter=center; pauseDrift();
   });
   addEventListener('pointermove', e => {
     if(!dragging) return;
-    const dx=e.clientX-startX; if(Math.abs(dx)>8) stripMoved=true;
-    center=clampC(startCenter - dx/spacing);
+    const dx=e.clientX-startX, dy=e.clientY-startY;
+    if(Math.abs(dx)>8 || Math.abs(dy)>8) stripMoved=true;
+    // vertical drag flips the rolodex; horizontal works too. Drag up / left = advance.
+    const d = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+    const unit = Math.max(150, cardH*0.75);
+    center=clampC(startCenter - d/unit);
   });
   addEventListener('pointerup', () => {
     if(!dragging) return;
