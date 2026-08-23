@@ -72,8 +72,9 @@
       const card=cards[i];
       if(ab>3.2){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
       const scale=Math.max(0.5, 1-ab*0.26);
-      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-30, tz=-ab*160, op=Math.max(0,1-ab*0.34);
-      card.style.transform='translate(-50%,-50%) translateX('+tx.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg) scale('+scale.toFixed(3)+')';
+      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-28, tz=-ab*160, op=Math.max(0,1-ab*0.34);
+      const rz=Math.max(-6, Math.min(6, o*-2.4));   // side plates tilt like leafed pages; centre straightens
+      card.style.transform='translate(-50%,-50%) translateX('+tx.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg) rotateZ('+rz.toFixed(2)+'deg) scale('+scale.toFixed(3)+')';
       card.style.opacity=op.toFixed(3);
       card.style.zIndex=String(100-Math.round(ab*10));
       card.style.pointerEvents = ab<1.5 ? 'auto' : 'none';
