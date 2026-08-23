@@ -61,7 +61,7 @@
   });
 
   let center=0, targetCenter=0, dragging=false, startX=0, startCenter=0, stripMoved=false,
-      spacing=460, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false;
+      spacing=460, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false, wheeling=false, wheelTO=null;
   const DRIFT_MS = reduce ? 1e12 : 9000;
 
   function computeSpacing(){ const cw = cards[0] ? cards[0].offsetWidth : 460; spacing = cw*0.66; }
@@ -97,7 +97,7 @@
   function stripLoop(now){
     if(mode!=='strip'){ stripRunning=false; return; }
     requestAnimationFrame(stripLoop);
-    if(!dragging){
+    if(!dragging && !wheeling){
       center += (targetCenter-center)*0.12;
       if(Math.abs(targetCenter-center)<0.0015) center=targetCenter;
       if(now>=autoResumeAt && now>=nextDrift){ advanceDrift(); nextDrift=now+DRIFT_MS; }
@@ -106,23 +106,28 @@
   }
   function startStrip(){ if(!stripRunning){ stripRunning=true; nextDrift=performance.now()+DRIFT_MS; requestAnimationFrame(stripLoop); } }
 
+  // drag (no pointer capture — capture would steal the pointerup and kill the card click)
   stripStage.addEventListener('pointerdown', e => {
     if(mode!=='strip') return;
     dragging=true; stripMoved=false; startX=e.clientX; startCenter=center; pauseDrift();
-    try{ stripStage.setPointerCapture(e.pointerId); }catch(err){}
   });
   addEventListener('pointermove', e => {
     if(!dragging) return;
-    const dx=e.clientX-startX; if(Math.abs(dx)>5) stripMoved=true;
+    const dx=e.clientX-startX; if(Math.abs(dx)>8) stripMoved=true;
     center=clampC(startCenter - dx/spacing);
   });
   addEventListener('pointerup', () => {
     if(!dragging) return;
     dragging=false; targetCenter=clampC(Math.round(center)); pauseDrift();
   });
+  // two-finger scroll — horizontal (natural for the carousel) or vertical, continuous + snap
   addEventListener('wheel', e => {
     if(mode!=='strip') return;
-    targetCenter=clampC(Math.round(center)+(e.deltaY>0?1:-1)); pauseDrift();
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    center = clampC(center + d*0.004);
+    wheeling=true; pauseDrift();
+    clearTimeout(wheelTO);
+    wheelTO = setTimeout(() => { wheeling=false; targetCenter=clampC(Math.round(center)); }, 150);
   }, {passive:true});
 
   // ================= SPOTLIGHT ROOM =================
