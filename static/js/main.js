@@ -66,25 +66,26 @@
   const DRIFT_MS = reduce ? 1e12 : 9000;
 
   function computeSpacing(){ if(cards[0]) cardW = cards[0].offsetWidth; }
-  // Horizontal carousel wrapped around a vertical axle — the plates circle an
-  // invisible globe rather than sliding on a straight line. The centre plate
-  // faces you; the others arc away to the sides and recede. Central plates stay
-  // fully opaque (no see-through), and the front always has the highest z, so
-  // there's no slide-past "jump".
-  const STEP = 30;                 // degrees between plates around the globe
+  // A big wheel in the screen plane: the main plate rests at the LOWEST point of
+  // the circle; its neighbours ride up-and-around the arc, tilting as they climb,
+  // and simply slip off the edge of the page (no scrolling behind — they fade as
+  // they leave). A sliver of gap between plates lets them breathe.
+  const STEP = 27;                 // degrees between plates around the wheel
   function renderStrip(){
-    const RAD = cardW * 1.25;      // globe radius (scales with plate size)
+    const RAD = cardW * 2.3;       // wheel radius (scales with plate size) — chord ≈ 1.07×width -> a sliver of gap
     for(let i=0;i<cards.length;i++){
       const o=i-center, ab=Math.abs(o);
       const card=cards[i];
-      if(ab>3.4){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
-      const ang = o*STEP;                                   // rotateY around the vertical axle
-      const op = ab<1.5 ? 1 : Math.max(0, 1-(ab-1.5)*0.75); // only the far tail fades into depth
-      const rz = Math.max(-4, Math.min(4, o*-1.6));         // gentle leafed-page tilt; centre straightens
-      const z = 140 + Math.round(Math.cos(ang*Math.PI/180)*100);  // front (ang 0) always highest
-      card.style.transform='translate(-50%,-50%) translateZ('+(-RAD).toFixed(1)+'px) rotateY('+ang.toFixed(2)+'deg) translateZ('+RAD.toFixed(1)+'px) rotateZ('+rz.toFixed(2)+'deg)';
+      if(ab>2.9){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
+      const rad = o*STEP*Math.PI/180;
+      const dx =  RAD*Math.sin(rad);            // swing out to the side
+      const dy = -RAD*(1-Math.cos(rad));        // and lift up along the circle
+      const rz =  o*STEP;                        // tilt with the wheel (upright at the bottom)
+      const sc =  1 - Math.min(ab,2)*0.05;       // a touch smaller as they recede
+      const op = ab<1.1 ? 1 : Math.max(0, 1-(ab-1.1)*0.85);  // fade as they slip off the edge
+      card.style.transform='translate(-50%,-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate('+rz.toFixed(2)+'deg) scale('+sc.toFixed(3)+')';
       card.style.opacity=op.toFixed(3);
-      card.style.zIndex=String(z);
+      card.style.zIndex=String(200-Math.round(ab*10));   // the main plate sits on top
       const isCenter = ab<0.5;
       card.style.pointerEvents = isCenter ? 'auto' : 'none';
       card.classList.toggle('center', isCenter);
