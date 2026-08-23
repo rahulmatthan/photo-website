@@ -16,7 +16,7 @@ body.strip .filmstrip{display:block;}
 .filmstrip.gone{opacity:0;pointer-events:none;}
 .strip-stage{position:absolute;inset:0;perspective:1600px;}
 /* each card is a matted catalogue plate on ivory stock, resting on a polished surface */
-.card{position:absolute;left:50%;top:49%;height:min(40vh,28vw);aspect-ratio:3/2;margin:0;
+.card{position:absolute;left:50%;top:49%;height:min(38vh,26vw);aspect-ratio:3/2;margin:0;
   padding:clamp(9px,1.1vw,17px);cursor:pointer;transform-origin:center center;will-change:transform,opacity;
   background:linear-gradient(158deg,#efe7d4 0%,#e5dcc5 58%,#dacfb4 100%);
   box-shadow:0 2px 8px rgba(0,0,0,.5),0 24px 60px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.55),inset 0 0 0 1px rgba(0,0,0,.12);
