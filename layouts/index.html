@@ -44,16 +44,20 @@
 {{ end }}
 {{ $rooms = shuffle $rooms }}
 
-<!-- FILMSTRIP (default overview) -->
-<div class="filmstrip" id="filmstrip">
-  <div class="layer wall"></div>
-  <div class="layer spot"></div>
-  <div class="layer floor"></div>
-  <div class="strip-stage" id="stripStage"></div>
-  <div class="layer vignette"></div>
-  <div class="layer grain"></div>
-  <div class="strip-label" id="stripLabel"></div>
-  <div class="strip-hint" id="stripHint">leaf through the catalogue · click a plate to enter</div>
+<!-- BOOK (default overview): a full-screen portfolio you leaf through -->
+<div class="book" id="book">
+  <div class="book-stage">
+    <div class="spread" id="spread">
+      <div class="page left" id="pageL"></div>
+      <div class="page right" id="pageR"></div>
+      <div class="spine"></div>
+      <div class="leaf hidden" id="leaf">
+        <div class="leaf-face front" id="leafFront"></div>
+        <div class="leaf-face back" id="leafBack"></div>
+      </div>
+    </div>
+  </div>
+  <div class="strip-hint" id="stripHint">leaf through the portfolio · click a plate to enter</div>
   <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
 </div>
 

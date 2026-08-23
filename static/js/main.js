@@ -1,13 +1,15 @@
-// The gallery. Default view is a filmstrip carousel of location cards (drag / scroll
-// to browse). Clicking the centred card flips into the spotlight — the lit framed
-// print for that location, cycling its photographs. "Back" returns to the filmstrip.
+// The gallery. Default view is a full-screen portfolio BOOK — leaf through the
+// spreads (one location each: a matted plate on the left page, an editorial
+// label on the right). Opening a plate flips into the spotlight — the lit framed
+// print for that location, cycling its photographs. "Back" returns to the book.
 (function(){
   const G = window.GALLERY || {rooms:[]};
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
-  const filmstrip=$('filmstrip'), stripStage=$('stripStage'), stripLabel=$('stripLabel');
+  const book=$('book'), spread=$('spread'), pageL=$('pageL'), pageR=$('pageR'),
+        leaf=$('leaf'), leafFront=$('leafFront'), leafBack=$('leafBack');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -44,111 +46,82 @@
   const ease = x => x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2;
   const clampC = v => Math.max(0, Math.min(rooms.length-1, v));
 
-  let mode='entry';   // entry | strip | room
+  let mode='entry';   // entry | strip (the book) | room
   function setMode(m){ mode=m; document.body.classList.toggle('strip', m==='strip'); document.body.classList.toggle('room', m==='room'); }
 
-  // ================= FILMSTRIP =================
-  const cards=[];
-  rooms.forEach((rm,i)=>{
-    const c=document.createElement('button'); c.className='card'; c.type='button'; c.dataset.i=i;
-    const img=document.createElement('img'); img.alt=rm.title;
-    img.src = heroOf(rm).card || heroOf(rm).src;
-    c.appendChild(img); stripStage.appendChild(c); cards.push(c);
-    c.addEventListener('click', () => {
-      if(stripMoved) return;
-      if(i===Math.round(center)) enterRoom(i);
-      else { targetCenter=i; pauseDrift(); }
-    });
-  });
+  // ================= BOOK (overview) =================
+  const FLIP = reduce ? 350 : 1200;
+  document.documentElement.style.setProperty('--flip', FLIP+'ms');
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function plateHTML(rm){ const h=heroOf(rm);
+    return '<div class="plateFig"><figure class="mount"><img src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></figure></div>'; }
+  function labelHTML(rm){
+    return '<div class="leafLabel"><span class="loc">'+esc(rm.title)+'</span><span class="rule"></span>'
+      +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
+      +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
 
-  let center=0, targetCenter=0, dragging=false, startX=0, startY=0, startCenter=0, stripMoved=false,
-      spacing=460, cardW=560, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false, wheeling=false, wheelTO=null;
-  const DRIFT_MS = reduce ? 1e12 : 9000;
+  let bookIdx=0, flipping=false, wheelLock=false;
+  function showSpread(i){
+    bookIdx=clampC(i);
+    pageL.innerHTML=plateHTML(rooms[bookIdx]);
+    pageR.innerHTML=labelHTML(rooms[bookIdx]);
+    preloadSrc(heroOf(rooms[bookIdx]).src);                 // warm current + neighbours for quick flips
+    if(rooms[bookIdx+1]) preloadSrc(heroOf(rooms[bookIdx+1]).src);
+    if(rooms[bookIdx-1]) preloadSrc(heroOf(rooms[bookIdx-1]).src);
+  }
+  // Turn a single leaf around the centre spine. Forward: the leaf lies over the
+  // right page (its front = current label), swings left, and its back (the next
+  // plate) lands as the new left page while the new label is revealed beneath.
+  function turn(dir){
+    if(flipping || mode!=='strip') return;
+    const j=bookIdx+dir;
+    if(j<0 || j>rooms.length-1) return;
+    flipping=true;
+    if(dir>0){
+      leaf.className='leaf fwd';
+      leafFront.innerHTML=labelHTML(rooms[bookIdx]);        // current right page
+      leafBack.innerHTML =plateHTML(rooms[j]);              // becomes the new left page
+      pageR.innerHTML=labelHTML(rooms[j]);                  // revealed as the leaf lifts
+      leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
+      leaf.style.transform='rotateY(-180deg)';
+    } else {
+      leaf.className='leaf bwd';
+      leafFront.innerHTML=plateHTML(rooms[bookIdx]);        // current left page
+      leafBack.innerHTML =labelHTML(rooms[j]);              // becomes the new right page
+      pageL.innerHTML=plateHTML(rooms[j]);                  // revealed as the leaf lifts
+      leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
+      leaf.style.transform='rotateY(180deg)';
+    }
+    let done=false;
+    const finish=()=>{ if(done) return; done=true;
+      leaf.removeEventListener('transitionend',finish);
+      showSpread(j); leaf.className='leaf hidden'; leaf.style.transform=''; flipping=false; };
+    leaf.addEventListener('transitionend',finish);
+    setTimeout(finish, FLIP+260);                           // safety net if transitionend is missed
+  }
 
-  function computeSpacing(){ if(cards[0]) cardW = cards[0].offsetWidth; }
-  // The plates glide past the camera UPRIGHT (no spin) — only their PATH curves.
-  // They ride a loose arc, like the equator of a tilted globe: the main plate
-  // dips lowest at the front, the others rise gently as they travel and scroll
-  // off the sides. A sliver of gap between plates lets them breathe.
-  const GAP = 1.07;                // horizontal spacing as a fraction of plate width
-  function renderStrip(){
-    const spacing = cardW * GAP;
-    const R = cardW * 4.2;         // arc radius — larger = looser/gentler curve
-    const DEPTH = cardW * 0.26;    // how much the plates recede as they leave (subtle)
-    for(let i=0;i<cards.length;i++){
-      const o=i-center, ab=Math.abs(o);
-      const card=cards[i];
-      if(ab>3.3){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
-      const tx = o*spacing;                                  // even horizontal glide
-      const txc = Math.min(Math.abs(tx), R*0.985);
-      const ty = -(R - Math.sqrt(R*R - txc*txc));            // gentle rise toward the sides; centre lowest
-      const tz = -ab*DEPTH;                                  // ease back into depth (perspective shrinks them)
-      const ry = Math.max(-15, Math.min(15, o*7));           // a hint of turn — outer edge wraps back (convex)
-      const op = ab<2 ? 1 : Math.max(0, 1-(ab-2)*0.9);       // fade as they scroll off the edge
-      card.style.transform='translate(-50%,-50%) translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg)';
-      card.style.opacity=op.toFixed(3);
-      card.style.zIndex=String(200-Math.round(ab*10));       // the main plate sits on top
-      const isCenter = ab<0.5;
-      card.style.pointerEvents = isCenter ? 'auto' : 'none';
-      card.classList.toggle('center', isCenter);
+  // input: swipe / two-finger scroll to turn; tap a plate or "enter" cue to open the room
+  let bStartX=0,bStartY=0,bDown=false,bMoved=false;
+  spread.addEventListener('pointerdown', e=>{ if(mode!=='strip'||flipping) return; bDown=true; bMoved=false; bStartX=e.clientX; bStartY=e.clientY; });
+  addEventListener('pointermove', e=>{ if(bDown && (Math.abs(e.clientX-bStartX)>10||Math.abs(e.clientY-bStartY)>10)) bMoved=true; });
+  addEventListener('pointerup', e=>{
+    if(!bDown) return; bDown=false;
+    const dx=e.clientX-bStartX;
+    if(bMoved && Math.abs(dx)>60){ turn(dx<0?1:-1); return; }   // swipe left = forward
+    if(!bMoved && e.target && e.target.closest && (e.target.closest('.plateFig') || e.target.closest('[data-enter]'))){
+      enterRoom(bookIdx);
     }
-  }
-  let lastLabel=-1;
-  function updateLabel(){
-    const ci=Math.round(center);
-    if(ci!==lastLabel && rooms[ci]){ lastLabel=ci;
-      stripLabel.innerHTML='<span class="loc">'+rooms[ci].title+'</span><span class="sub">'+rooms[ci].count+' photograph'+(rooms[ci].count>1?'s':'')+'</span>';
-      preloadSrc(heroOf(rooms[ci]).src);   // warm the spotlight hero for a quick flip
-    }
-  }
-  function pauseDrift(){ autoResumeAt = performance.now() + (reduce?0:7000); }
-  function advanceDrift(){
-    let n=Math.round(center)+driftDir;
-    if(n>rooms.length-1){ driftDir=-1; n=Math.round(center)+driftDir; }
-    else if(n<0){ driftDir=1; n=Math.round(center)+driftDir; }
-    targetCenter=clampC(n);
-  }
-  function stripLoop(now){
-    if(mode!=='strip'){ stripRunning=false; return; }
-    requestAnimationFrame(stripLoop);
-    if(!dragging && !wheeling){
-      center += (targetCenter-center)*0.12;
-      if(Math.abs(targetCenter-center)<0.0015) center=targetCenter;
-      if(now>=autoResumeAt && now>=nextDrift){ advanceDrift(); nextDrift=now+DRIFT_MS; }
-    }
-    renderStrip(); updateLabel();
-  }
-  function startStrip(){ if(!stripRunning){ stripRunning=true; nextDrift=performance.now()+DRIFT_MS; requestAnimationFrame(stripLoop); } }
-
-  // drag (no pointer capture — capture would steal the pointerup and kill the card click)
-  stripStage.addEventListener('pointerdown', e => {
-    if(mode!=='strip') return;
-    dragging=true; stripMoved=false; startX=e.clientX; startY=e.clientY; startCenter=center; pauseDrift();
   });
-  addEventListener('pointermove', e => {
-    if(!dragging) return;
-    const dx=e.clientX-startX, dy=e.clientY-startY;
-    if(Math.abs(dx)>8 || Math.abs(dy)>8) stripMoved=true;
-    // horizontal drag glides the plates past; finger tracks the motion
-    const unit = Math.max(160, cardW*0.95);
-    center=clampC(startCenter - dx/unit);
-  });
-  addEventListener('pointerup', () => {
-    if(!dragging) return;
-    dragging=false; targetCenter=clampC(Math.round(center)); pauseDrift();
-  });
-  // two-finger scroll — horizontal (natural for the carousel) or vertical, continuous + snap
-  addEventListener('wheel', e => {
-    if(mode!=='strip') return;
-    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    center = clampC(center + d*0.004);
-    wheeling=true; pauseDrift();
-    clearTimeout(wheelTO);
-    wheelTO = setTimeout(() => { wheeling=false; targetCenter=clampC(Math.round(center)); }, 150);
-  }, {passive:true});
+  addEventListener('wheel', e=>{
+    if(mode!=='strip'||flipping||wheelLock) return;
+    const d=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
+    if(Math.abs(d)<8) return;
+    wheelLock=true; setTimeout(()=>wheelLock=false, FLIP+140);
+    turn(d>0?1:-1);
+  },{passive:true});
 
   // ================= SPOTLIGHT ROOM =================
-  let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false, msgShown=false;
+  let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
   const RISE=reduce?900:4000, HOLD=reduce?2500:7000, FALL=reduce?900:4000, BLACK=reduce?300:1100;
 
   function swapRoom(){
@@ -196,14 +169,14 @@
     swapRoom(); phase='rise'; t0=performance.now();
     if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
   }
-  // A slow, deliberate entry: strip -> black, settle, title fades in, then the
+  // A slow, deliberate entry: book -> black, settle, title fades in, then the
   // subtitle, both breathe, fade to black, wait in darkness, then the print rises.
   const FADE_TXT = 2000;   // matches the CSS opacity transition on .h / .p
   function enterRoom(i){
     clearEnterTimers();
     enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
     enterMsg.classList.remove('h-in','p-in');
-    filmstrip.classList.add('gone');                       // 1. strip fades to black (1.3s)
+    book.classList.add('gone');                            // 1. book fades to black (1.3s)
     const T = reduce
       ? { pre:500,  subDelay:400,  hold:500,  black:400 }
       : { pre:1800, subDelay:1600, hold:1600, black:1300 };
@@ -220,32 +193,34 @@
   function finishExit(){
     roomRunning=false; back.classList.remove('avail'); plate.classList.remove('show');
     clearEnterTimers(); enterMsg.classList.remove('h-in','p-in');
-    setMode('strip');
-    center=targetCenter=roomFrom; lastLabel=-1; renderStrip(); updateLabel();
-    filmstrip.classList.remove('gone');
-    pauseDrift(); startStrip();
+    setMode('strip'); showSpread(roomFrom);                // reopen the book at the location we left
+    book.classList.remove('gone');
   }
 
   back.addEventListener('click', e => { e.stopPropagation(); exitToStrip(); });
 
   // ================= ENTRY + GLOBAL INPUT =================
+  function goFullscreen(){
+    try{ const el=document.documentElement, rq=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(rq && !document.fullscreenElement && !document.webkitFullscreenElement){ const r=rq.call(el); if(r&&r.catch) r.catch(()=>{}); } }catch(e){}
+  }
   let started=false, autoEnter=null;
   function startGallery(){
     if(started) return; started=true; clearTimeout(autoEnter);
     entry.classList.add('gone');
-    setMode('strip'); center=0; targetCenter=0; computeSpacing(); renderStrip(); updateLabel(); startStrip();
+    setMode('strip'); showSpread(0);
   }
   addEventListener('pointerdown', e => {
-    if(e.target && e.target.closest && (e.target.closest('#back') || e.target.closest('.card'))) return;
-    if(!started){ startGallery(); return; }
+    if(e.target && e.target.closest && (e.target.closest('#back') || e.target.closest('#spread'))) return;
+    if(!started){ goFullscreen(); startGallery(); return; }   // fullscreen on the entry gesture
     if(mode==='room' && phase==='hold'){ setSit(!sitting); }
   });
   addEventListener('keydown', e => {
-    if(!started){ startGallery(); return; }
+    if(!started){ goFullscreen(); startGallery(); return; }
     if(mode==='strip'){
-      if(e.key==='ArrowRight'){ targetCenter=clampC(Math.round(center)+1); pauseDrift(); }
-      else if(e.key==='ArrowLeft'){ targetCenter=clampC(Math.round(center)-1); pauseDrift(); }
-      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); enterRoom(Math.round(center)); }
+      if(e.key==='ArrowRight'){ turn(1); }
+      else if(e.key==='ArrowLeft'){ turn(-1); }
+      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); enterRoom(bookIdx); }
     } else if(mode==='room'){
       if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); roomPending=1; goFall(); }
       else if(e.key==='ArrowLeft'){ e.preventDefault(); roomPending=-1; goFall(); }
@@ -259,7 +234,7 @@
   ['mousemove','pointerdown','wheel','keydown','touchstart'].forEach(ev=>addEventListener(ev,wake,{passive:true}));
   wake();
 
-  addEventListener('resize', () => { setMax(); computeSpacing(); if(mode==='strip') renderStrip(); });
+  addEventListener('resize', setMax);
   setMax();
 
   autoEnter = setTimeout(startGallery, reduce?2000:5000);
