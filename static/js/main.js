@@ -66,26 +66,26 @@
   const DRIFT_MS = reduce ? 1e12 : 9000;
 
   function computeSpacing(){ if(cards[0]) cardW = cards[0].offsetWidth; }
-  // A big wheel in the screen plane: the main plate rests at the LOWEST point of
-  // the circle; its neighbours ride up-and-around the arc, tilting as they climb,
-  // and simply slip off the edge of the page (no scrolling behind — they fade as
-  // they leave). A sliver of gap between plates lets them breathe.
-  const STEP = 27;                 // degrees between plates around the wheel
+  // The plates glide past the camera UPRIGHT (no spin) — only their PATH curves.
+  // They ride a loose arc, like the equator of a tilted globe: the main plate
+  // dips lowest at the front, the others rise gently as they travel and scroll
+  // off the sides. A sliver of gap between plates lets them breathe.
+  const GAP = 1.07;                // horizontal spacing as a fraction of plate width
   function renderStrip(){
-    const RAD = cardW * 2.3;       // wheel radius (scales with plate size) — chord ≈ 1.07×width -> a sliver of gap
+    const spacing = cardW * GAP;
+    const R = cardW * 4.2;         // arc radius — larger = looser/gentler curve
     for(let i=0;i<cards.length;i++){
       const o=i-center, ab=Math.abs(o);
       const card=cards[i];
-      if(ab>2.9){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
-      const rad = o*STEP*Math.PI/180;
-      const dx =  RAD*Math.sin(rad);            // swing out to the side
-      const dy = -RAD*(1-Math.cos(rad));        // and lift up along the circle
-      const rz =  o*STEP;                        // tilt with the wheel (upright at the bottom)
-      const sc =  1 - Math.min(ab,2)*0.05;       // a touch smaller as they recede
-      const op = ab<1.1 ? 1 : Math.max(0, 1-(ab-1.1)*0.85);  // fade as they slip off the edge
-      card.style.transform='translate(-50%,-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate('+rz.toFixed(2)+'deg) scale('+sc.toFixed(3)+')';
+      if(ab>3.3){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
+      const tx = o*spacing;                                  // even horizontal glide
+      const txc = Math.min(Math.abs(tx), R*0.985);
+      const ty = -(R - Math.sqrt(R*R - txc*txc));            // gentle rise toward the sides; centre lowest
+      const sc = 1 - Math.min(ab,3)*0.02;                    // barely smaller as they recede
+      const op = ab<2 ? 1 : Math.max(0, 1-(ab-2)*0.9);       // fade as they scroll off the edge
+      card.style.transform='translate(-50%,-50%) translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) scale('+sc.toFixed(3)+')';
       card.style.opacity=op.toFixed(3);
-      card.style.zIndex=String(200-Math.round(ab*10));   // the main plate sits on top
+      card.style.zIndex=String(200-Math.round(ab*10));       // the main plate sits on top
       const isCenter = ab<0.5;
       card.style.pointerEvents = isCenter ? 'auto' : 'none';
       card.classList.toggle('center', isCenter);
@@ -127,8 +127,8 @@
     if(!dragging) return;
     const dx=e.clientX-startX, dy=e.clientY-startY;
     if(Math.abs(dx)>8 || Math.abs(dy)>8) stripMoved=true;
-    // horizontal drag turns the globe; drag left = advance
-    const unit = Math.max(140, cardW*0.6);
+    // horizontal drag glides the plates past; finger tracks the motion
+    const unit = Math.max(160, cardW*0.95);
     center=clampC(startCenter - dx/unit);
   });
   addEventListener('pointerup', () => {
