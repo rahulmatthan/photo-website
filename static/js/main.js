@@ -8,8 +8,8 @@
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
-  const book=$('book'), spread=$('spread'), pageL=$('pageL'), pageR=$('pageR'),
-        leaf=$('leaf'), leafFront=$('leafFront'), leafBack=$('leafBack');
+  const book=$('book'), spread=$('spread'), sheet=$('sheet'),
+        leaf=$('leaf'), leafFront=$('leafFront');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -53,44 +53,41 @@
   const FLIP = reduce ? 350 : 1200;
   document.documentElement.style.setProperty('--flip', FLIP+'ms');
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  function plateHTML(rm){ const h=heroOf(rm);
-    return '<div class="plateFig"><img class="wc" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'; }
-  function labelHTML(rm){
-    return '<div class="leafLabel"><span class="loc">'+esc(rm.title)+'</span><span class="rule"></span>'
+  // one leaf of the book: the photograph centred at full aspect, plus a small caption
+  function sheetHTML(rm){ const h=heroOf(rm);
+    return '<img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'">'
+      +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
       +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
 
   let bookIdx=0, flipping=false, wheelLock=false;
   function showSpread(i){
     bookIdx=clampC(i);
-    pageL.innerHTML=labelHTML(rooms[bookIdx]);             // label on the left
-    pageR.innerHTML=plateHTML(rooms[bookIdx]);             // image on the right (the page that turns)
+    sheet.innerHTML=sheetHTML(rooms[bookIdx]);
     preloadSrc(heroOf(rooms[bookIdx]).src);                 // warm current + neighbours for quick flips
     if(rooms[bookIdx+1]) preloadSrc(heroOf(rooms[bookIdx+1]).src);
     if(rooms[bookIdx-1]) preloadSrc(heroOf(rooms[bookIdx-1]).src);
   }
-  // Turn a single leaf around the centre spine. Forward: the leaf lies over the
-  // right page (its front = current label), swings left, and its back (the next
-  // plate) lands as the new left page while the new label is revealed beneath.
+  // The whole page turns as one leaf, hinged at the spine edge — so the image
+  // turns WITH the page in both directions. Forward: the current page lifts and
+  // swings away (its back hidden past 90°), revealing the next beneath. Backward:
+  // the previous page swings back in from the left and lands on top.
   function turn(dir){
     if(flipping || mode!=='strip') return;
     const j=bookIdx+dir;
     if(j<0 || j>rooms.length-1) return;
     flipping=true;
+    leaf.className='leaf';
     if(dir>0){
-      leaf.className='leaf fwd';
-      leafFront.innerHTML=plateHTML(rooms[bookIdx]);        // the current IMAGE turns with the page
-      leafBack.innerHTML =labelHTML(rooms[j]);              // its back becomes the new left label
-      pageR.innerHTML=plateHTML(rooms[j]);                  // the next image is revealed beneath
+      leafFront.innerHTML=sheetHTML(rooms[bookIdx]);        // current page rides the leaf, turns away
+      sheet.innerHTML=sheetHTML(rooms[j]);                  // next page revealed beneath
       leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
       leaf.style.transform='rotateY(-180deg)';
     } else {
-      leaf.className='leaf bwd';
-      leafFront.innerHTML=labelHTML(rooms[bookIdx]);        // going back: the label page turns
-      leafBack.innerHTML =plateHTML(rooms[j]);              // its back becomes the previous image
-      pageL.innerHTML=labelHTML(rooms[j]);                  // the previous label revealed beneath
-      leaf.style.transform='rotateY(0deg)'; void leaf.offsetWidth;
-      leaf.style.transform='rotateY(180deg)';
+      leafFront.innerHTML=sheetHTML(rooms[j]);              // previous page swings back in
+      sheet.innerHTML=sheetHTML(rooms[bookIdx]);            // current stays beneath until covered
+      leaf.style.transform='rotateY(-180deg)'; void leaf.offsetWidth;
+      leaf.style.transform='rotateY(0deg)';
     }
     let done=false;
     const finish=()=>{ if(done) return; done=true;
@@ -108,7 +105,7 @@
     if(!bDown) return; bDown=false;
     const dx=e.clientX-bStartX;
     if(bMoved && Math.abs(dx)>60){ turn(dx<0?1:-1); return; }   // swipe left = forward
-    if(!bMoved && e.target && e.target.closest && (e.target.closest('.plateFig') || e.target.closest('[data-enter]'))){
+    if(!bMoved && e.target && e.target.closest && (e.target.closest('.pimg') || e.target.closest('[data-enter]'))){
       enterRoom(bookIdx);
     }
   });

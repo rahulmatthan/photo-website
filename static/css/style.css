@@ -16,39 +16,28 @@ body.room .stage{display:block;}
 body.strip .book{display:block;}
 .book.gone{opacity:0;pointer-events:none;}
 .book-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;perspective:2600px;}
-.spread{position:relative;height:min(62vh,31vw);aspect-ratio:8/3;transform-style:preserve-3d;
-  box-shadow:0 34px 80px rgba(0,0,0,.6);}
-/* two cream pages with a shadowed gutter down the middle */
-.page{position:absolute;top:0;height:100%;width:50%;overflow:hidden;-webkit-font-smoothing:antialiased;
-  background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);}
-.page.left{left:0;border-radius:4px 0 0 4px;box-shadow:inset -26px 0 46px -26px rgba(54,40,18,.55);}
-.page.right{right:0;border-radius:0 4px 4px 0;box-shadow:inset 26px 0 46px -26px rgba(54,40,18,.55);}
-.spine{position:absolute;top:0;left:50%;width:1px;height:100%;z-index:6;pointer-events:none;
-  transform:translateX(-.5px);background:linear-gradient(90deg,rgba(54,40,18,.3),rgba(54,40,18,.5));}
-/* image page: no frame — a watercolour wash that bleeds softly into the paper */
-.plateFig{position:absolute;inset:0;cursor:pointer;}
-.plateFig .wc{position:absolute;top:5%;left:5%;right:5%;bottom:5%;object-fit:cover;
-  filter:saturate(.84) contrast(.9) brightness(1.06) sepia(.05);
-  -webkit-mask-image:radial-gradient(102% 118% at 50% 50%, #000 46%, rgba(0,0,0,.5) 70%, rgba(0,0,0,0) 97%);
-          mask-image:radial-gradient(102% 118% at 50% 50%, #000 46%, rgba(0,0,0,.5) 70%, rgba(0,0,0,0) 97%);}
-/* right page: an editorial label */
-.leafLabel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 11%;}
-.leafLabel .loc{font-family:var(--serif);font-size:clamp(1.5rem,3.3vw,2.5rem);color:#2b2116;letter-spacing:.01em;}
-.leafLabel .rule{width:34px;height:1px;background:#a2895a;margin:1.15rem 0;opacity:.75;}
-.leafLabel .sub{font-family:var(--sans);font-size:.6rem;letter-spacing:.32em;text-transform:uppercase;color:#8b7451;}
-.leafLabel .enter{margin-top:2.7rem;font-family:var(--sans);font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;
+.spread{position:relative;height:min(80vh,56vw);aspect-ratio:3/2;transform-style:preserve-3d;}
+/* a cream leaf of the book, with a faint centre fold; the image sits centred at its full aspect ratio */
+.sheet,.leaf-face{position:absolute;inset:0;overflow:hidden;border-radius:3px;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);box-shadow:0 30px 70px rgba(0,0,0,.55);}
+.sheet::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:16%;transform:translateX(-50%);pointer-events:none;
+  background:linear-gradient(90deg,rgba(54,40,18,0),rgba(54,40,18,.05) 46%,rgba(54,40,18,.085) 50%,rgba(54,40,18,.05) 54%,rgba(54,40,18,0));}
+.pimg{position:absolute;top:47%;left:50%;transform:translate(-50%,-50%);
+  max-width:90%;max-height:80%;width:auto;height:auto;object-fit:contain;cursor:pointer;
+  box-shadow:0 8px 26px rgba(0,0,0,.32);}
+.cap{position:absolute;left:6%;bottom:5.5%;text-align:left;}
+.cap .loc{display:block;font-family:var(--serif);font-size:clamp(1rem,1.7vw,1.4rem);color:#2b2116;letter-spacing:.01em;}
+.cap .sub{display:block;margin-top:.3rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.28em;text-transform:uppercase;color:#8b7451;}
+.cap .enter{display:inline-block;margin-top:.8rem;font-family:var(--sans);font-size:.5rem;letter-spacing:.26em;text-transform:uppercase;
   color:#6c583c;cursor:pointer;opacity:.85;transition:opacity .4s ease;}
-.leafLabel .enter:hover{opacity:1;}
-.leafLabel .enter::after{content:"  \2192";}
-/* the flipping leaf — swings around the centre spine */
-.leaf{position:absolute;top:0;width:50%;height:100%;z-index:8;transform-style:preserve-3d;pointer-events:none;
+.cap .enter:hover{opacity:1;}
+.cap .enter::after{content:"  \2192";}
+/* the flipping leaf turns the whole page — image included — around the spine edge, so the image
+   turns with the page in BOTH directions. backface-visibility hides it past 90° to reveal the next. */
+.leaf{position:absolute;inset:0;z-index:8;transform-style:preserve-3d;pointer-events:none;transform-origin:0 50%;
   transition:transform var(--flip,1200ms) cubic-bezier(.42,.04,.24,1);will-change:transform;}
 .leaf.hidden{display:none;}
-.leaf.fwd{left:50%;transform-origin:0 50%;}
-.leaf.bwd{left:0;transform-origin:100% 50%;}
-.leaf-face{position:absolute;inset:0;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;
-  background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);box-shadow:0 0 40px rgba(0,0,0,.26);}
-.leaf-face.back{transform:rotateY(180deg);}
+.leaf-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
 
 .strip-hint{position:absolute;left:0;right:0;bottom:3.6vh;text-align:center;z-index:20;pointer-events:none;
   font-family:var(--sans);font-size:.58rem;letter-spacing:.28em;text-transform:uppercase;color:#6e6353;
