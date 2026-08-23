@@ -8,6 +8,7 @@
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
   const filmstrip=$('filmstrip'), stripStage=$('stripStage'), stripLabel=$('stripLabel');
+  const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!rooms.length){ return; }
@@ -131,7 +132,7 @@
   }, {passive:true});
 
   // ================= SPOTLIGHT ROOM =================
-  let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
+  let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false, msgShown=false;
   const RISE=reduce?900:4000, HOLD=reduce?2500:7000, FALL=reduce?900:4000, BLACK=reduce?300:1100;
 
   function swapRoom(){
@@ -155,7 +156,7 @@
     if(mode!=='room'){ roomRunning=false; return; }
     requestAnimationFrame(roomLoop);
     const el=now-t0; let light;
-    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
+    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(msgShown && light>0.16){ enterMsg.classList.remove('show'); msgShown=false; } if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
     else if(phase==='hold'){ light=1; if(!sitting && el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
     else {
@@ -172,6 +173,8 @@
   function setSit(on){ sitting=on; sitEl.classList.toggle('show', on && mode==='room' && phase==='hold'); if(!on) t0=performance.now(); }
 
   function enterRoom(i){
+    enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
+    enterMsg.classList.add('show'); msgShown=true;
     filmstrip.classList.add('gone');
     setTimeout(() => {
       setMode('room'); currentRoom=rooms[i]; roomFrom=i; roomIdx=0; pendingExit=false; sitting=false;
@@ -183,6 +186,7 @@
   function exitToStrip(){ if(mode!=='room') return; pendingExit=true; goFall(); }
   function finishExit(){
     roomRunning=false; back.classList.remove('avail'); plate.classList.remove('show');
+    enterMsg.classList.remove('show'); msgShown=false;
     setMode('strip');
     center=targetCenter=roomFrom; lastLabel=-1; renderStrip(); updateLabel();
     filmstrip.classList.remove('gone');
