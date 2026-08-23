@@ -72,7 +72,10 @@
       const card=cards[i];
       if(ab>3.2){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
       const scale=Math.max(0.5, 1-ab*0.26);
-      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-28, tz=-ab*160, op=Math.max(0,1-ab*0.34);
+      // near plates stay fully opaque (solid); only the far ones fade out, so you
+      // never see the next plate through the one in front.
+      const op = ab<2.0 ? 1 : Math.max(0, 1-(ab-2.0)*0.85);
+      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-28, tz=-ab*160;
       const rz=Math.max(-6, Math.min(6, o*-2.4));   // side plates tilt like leafed pages; centre straightens
       card.style.transform='translate(-50%,-50%) translateX('+tx.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg) rotateZ('+rz.toFixed(2)+'deg) scale('+scale.toFixed(3)+')';
       card.style.opacity=op.toFixed(3);
