@@ -60,7 +60,7 @@
       +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
       +'<span class="enter" data-enter="1">enter the gallery</span></div>'
-      +'<span class="curl" aria-hidden="true"></span>'; }
+      +'<span class="peel" aria-hidden="true"></span>'; }
 
   let bookIdx=0, flipping=false, wheelLock=false;
   function showSpread(i){
