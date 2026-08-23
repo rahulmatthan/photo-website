@@ -24,6 +24,7 @@
 {{ $i := 0 }}
 {{ range $imgs }}
 {{ $img := .Fit "2048x2048 webp q80" }}
+{{ $card := .Fit "900x900 webp q78" }}
 {{ $base := path.Base .Name }}
 {{ $isHero := hasPrefix $base "_" }}
 {{ $clean := cond $isHero (substr $base 1) $base }}
@@ -34,7 +35,7 @@
 {{ $title := trim (index $parts 0) " " }}
 {{ $place := "" }}
 {{ if gt (len $parts) 1 }}{{ $place = trim (index $parts 1) " " }}{{ end }}
-{{ $photos = $photos | append (dict "src" $img.RelPermalink "title" $title "place" $place) }}
+{{ $photos = $photos | append (dict "src" $img.RelPermalink "card" $card.RelPermalink "title" $title "place" $place) }}
 {{ if $isHero }}{{ $heroIdx = $i }}{{ end }}
 {{ $i = add $i 1 }}
 {{ end }}
@@ -43,6 +44,19 @@
 {{ end }}
 {{ $rooms = shuffle $rooms }}
 
+<!-- FILMSTRIP (default overview) -->
+<div class="filmstrip" id="filmstrip">
+  <div class="layer wall"></div>
+  <div class="layer floor"></div>
+  <div class="strip-stage" id="stripStage"></div>
+  <div class="layer vignette"></div>
+  <div class="layer grain"></div>
+  <div class="strip-label" id="stripLabel"></div>
+  <div class="strip-hint" id="stripHint">drag to browse · click to enter</div>
+  <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
+</div>
+
+<!-- SPOTLIGHT (close look) -->
 <div class="stage" id="stage">
   <div class="layer wall"></div>
   <div class="layer floor"></div>
@@ -57,9 +71,9 @@
     </figcaption>
     <button type="button" class="locLink" id="locLink"></button>
   </div>
+  <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
   <div class="layer vignette"></div>
   <div class="layer grain"></div>
-  <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
   <div class="reveal" id="reveal"></div>
 </div>
 

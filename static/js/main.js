@@ -1,22 +1,21 @@
-// The gallery. A "collection wall" slowly cycles one hero print per location;
-// tapping a print enters that location's room of photographs, which cycles and
-// then returns to the wall on its own. Tapping inside a room "sits" (holds the
-// light). Everything is deliberately slow. Light rises from and falls to true black.
+// The gallery. Default view is a filmstrip carousel of location cards (drag / scroll
+// to browse). Clicking the centred card flips into the spotlight — the lit framed
+// print for that location, cycling its photographs. "Back" returns to the filmstrip.
 (function(){
   const G = window.GALLERY || {rooms:[]};
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
-  const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'),
-        capCue=$('capCue'), reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
+  const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
+        reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
+  const filmstrip=$('filmstrip'), stripStage=$('stripStage'), stripLabel=$('stripLabel');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!rooms.length || !reveal){ return; }
+  if(!rooms.length){ return; }
 
   let maxR=1600;
   function setMax(){ maxR = 1.85*Math.hypot(innerWidth,innerHeight); }
-  addEventListener('resize', setMax); setMax();
 
-  // ---- dominant colour + bounded preloading (keyed by src) ----
+  // ---------- dominant colour + bounded preloading ----------
   const cache={}, dom={};
   function dominant(img){
     if(!cx) return '#caa46a';
@@ -40,132 +39,186 @@
     img.onload = () => { if(!dom[src]) dom[src] = dominant(img); };
     img.src = src; cache[src] = img; return img;
   }
-
-  // ---- state ----
-  let mode='entry', wallIdx=0, roomIdx=0, currentRoom=null;
-  let phase='rise', t0=0, pending=null, sitting=false, started=false, navToken=0;
-  const RISE=reduce?900:4000, HOLD=reduce?2500:7000, FALL=reduce?900:4000, BLACK=reduce?300:1100;
-  const ease = x => x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2;
-
   function heroOf(room){ return room.photos[room.heroIdx] || room.photos[0]; }
-  function current(){
-    if(mode==='wall'){
-      const rm=rooms[wallIdx], p=heroOf(rm);
-      return { src:p.src, title:p.title, place:p.place,
-               cue: rm.title + ' · ' + rm.count + ' photograph' + (rm.count>1?'s':'') };
+  const ease = x => x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2;
+  const clampC = v => Math.max(0, Math.min(rooms.length-1, v));
+
+  let mode='entry';   // entry | strip | room
+  function setMode(m){ mode=m; document.body.classList.toggle('strip', m==='strip'); document.body.classList.toggle('room', m==='room'); }
+
+  // ================= FILMSTRIP =================
+  const cards=[];
+  rooms.forEach((rm,i)=>{
+    const c=document.createElement('button'); c.className='card'; c.type='button'; c.dataset.i=i;
+    const img=document.createElement('img'); img.alt=rm.title;
+    img.src = heroOf(rm).card || heroOf(rm).src;
+    c.appendChild(img); stripStage.appendChild(c); cards.push(c);
+    c.addEventListener('click', () => {
+      if(stripMoved) return;
+      if(i===Math.round(center)) enterRoom(i);
+      else { targetCenter=i; pauseDrift(); }
+    });
+  });
+
+  let center=0, targetCenter=0, dragging=false, startX=0, startCenter=0, stripMoved=false,
+      spacing=460, nextDrift=0, driftDir=1, autoResumeAt=0, stripRunning=false;
+  const DRIFT_MS = reduce ? 1e12 : 9000;
+
+  function computeSpacing(){ const cw = cards[0] ? cards[0].offsetWidth : 460; spacing = cw*0.66; }
+  function renderStrip(){
+    for(let i=0;i<cards.length;i++){
+      const o=i-center, ab=Math.abs(o);
+      const card=cards[i];
+      if(ab>3.2){ card.style.opacity='0'; card.style.pointerEvents='none'; continue; }
+      const scale=Math.max(0.5, 1-ab*0.26);
+      const tx=o*spacing, ry=Math.max(-1,Math.min(1,o))*-30, tz=-ab*160, op=Math.max(0,1-ab*0.34);
+      card.style.transform='translate(-50%,-50%) translateX('+tx.toFixed(1)+'px) translateZ('+tz.toFixed(1)+'px) rotateY('+ry.toFixed(2)+'deg) scale('+scale.toFixed(3)+')';
+      card.style.opacity=op.toFixed(3);
+      card.style.zIndex=String(100-Math.round(ab*10));
+      card.style.pointerEvents = ab<1.5 ? 'auto' : 'none';
+      card.classList.toggle('center', ab<0.5);
     }
+  }
+  let lastLabel=-1;
+  function updateLabel(){
+    const ci=Math.round(center);
+    if(ci!==lastLabel && rooms[ci]){ lastLabel=ci;
+      stripLabel.innerHTML='<span class="loc">'+rooms[ci].title+'</span><span class="sub">'+rooms[ci].count+' photograph'+(rooms[ci].count>1?'s':'')+'</span>';
+      preloadSrc(heroOf(rooms[ci]).src);   // warm the spotlight hero for a quick flip
+    }
+  }
+  function pauseDrift(){ autoResumeAt = performance.now() + (reduce?0:7000); }
+  function advanceDrift(){
+    let n=Math.round(center)+driftDir;
+    if(n>rooms.length-1){ driftDir=-1; n=Math.round(center)+driftDir; }
+    else if(n<0){ driftDir=1; n=Math.round(center)+driftDir; }
+    targetCenter=clampC(n);
+  }
+  function stripLoop(now){
+    if(mode!=='strip'){ stripRunning=false; return; }
+    requestAnimationFrame(stripLoop);
+    if(!dragging){
+      center += (targetCenter-center)*0.12;
+      if(Math.abs(targetCenter-center)<0.0015) center=targetCenter;
+      if(now>=autoResumeAt && now>=nextDrift){ advanceDrift(); nextDrift=now+DRIFT_MS; }
+    }
+    renderStrip(); updateLabel();
+  }
+  function startStrip(){ if(!stripRunning){ stripRunning=true; nextDrift=performance.now()+DRIFT_MS; requestAnimationFrame(stripLoop); } }
+
+  stripStage.addEventListener('pointerdown', e => {
+    if(mode!=='strip') return;
+    dragging=true; stripMoved=false; startX=e.clientX; startCenter=center; pauseDrift();
+    try{ stripStage.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  addEventListener('pointermove', e => {
+    if(!dragging) return;
+    const dx=e.clientX-startX; if(Math.abs(dx)>5) stripMoved=true;
+    center=clampC(startCenter - dx/spacing);
+  });
+  addEventListener('pointerup', () => {
+    if(!dragging) return;
+    dragging=false; targetCenter=clampC(Math.round(center)); pauseDrift();
+  });
+  addEventListener('wheel', e => {
+    if(mode!=='strip') return;
+    targetCenter=clampC(Math.round(center)+(e.deltaY>0?1:-1)); pauseDrift();
+  }, {passive:true});
+
+  // ================= SPOTLIGHT ROOM =================
+  let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
+  const RISE=reduce?900:4000, HOLD=reduce?2500:7000, FALL=reduce?900:4000, BLACK=reduce?300:1100;
+
+  function swapRoom(){
     const p=currentRoom.photos[roomIdx];
-    return { src:p.src, title:p.title, place:p.place, cue:'' };
+    photo.src=p.src;
+    document.documentElement.style.setProperty('--dom', dom[p.src] || '#caa46a');
+    capTitle.textContent=p.title||'';
+    capCue.style.display='none';
+    capPlace.textContent=p.place||''; capPlace.style.display=p.place?'':'none';
+    back.classList.add('avail');
+    const ni=(roomIdx+1)%currentRoom.photos.length;
+    preloadSrc(currentRoom.photos[ni].src);
   }
-
-  function applyStep(){
-    const act = pending || 'next'; pending = null;
-    if(act==='enter'){ mode='room'; currentRoom=rooms[wallIdx]; roomIdx=0; }
-    else if(act==='back'){ mode='wall'; }
-    else if(act==='next'){
-      if(mode==='wall'){ wallIdx=(wallIdx+1)%rooms.length; }
-      else { roomIdx++; if(roomIdx>=currentRoom.photos.length){ mode='wall'; roomIdx=0; } }
-    } else if(act==='prev'){
-      if(mode==='wall'){ wallIdx=(wallIdx-1+rooms.length)%rooms.length; }
-      else { roomIdx--; if(roomIdx<0){ mode='wall'; roomIdx=0; } }
-    }
-  }
-
-  function preloadNext(){
-    if(mode==='wall'){
-      preloadSrc(heroOf(rooms[(wallIdx+1)%rooms.length]).src);
-      preloadSrc(rooms[wallIdx].photos[0].src);          // so entering is instant
-    } else {
-      const ni=roomIdx+1;
-      if(ni<currentRoom.photos.length) preloadSrc(currentRoom.photos[ni].src);
-      else preloadSrc(heroOf(rooms[wallIdx]).src);
-    }
-  }
-
-  function swapToCurrent(){
-    const c = current();
-    photo.src = c.src;
-    document.documentElement.style.setProperty('--dom', dom[c.src] || '#caa46a');
-    if(mode==='wall'){
-      // the collection wall shows no title — just the location, as a link that
-      // fades in on cursor movement and clicks into the room.
-      document.body.classList.add('wall');
-      locLink.textContent = rooms[wallIdx].title;
-    } else {
-      document.body.classList.remove('wall');
-      capTitle.textContent = c.title || '';
-      capCue.style.display = 'none';
-      capPlace.textContent = c.place || ''; capPlace.style.display = c.place ? '' : 'none';
-    }
-    back.classList.toggle('avail', mode==='room');
-    preloadNext();
-  }
-
   function setReveal(light){
     if(light<=0.02){ reveal.style.background='#000'; return; }
     const r=light*maxR, rx=(r*1.35).toFixed(1), ry=(r*0.78).toFixed(1);
     const a0=1-light, s1=a0.toFixed(3), s2=(a0+(1-a0)*0.30).toFixed(3), s3=(a0+(1-a0)*0.65).toFixed(3);
     reveal.style.background='radial-gradient(ellipse '+rx+'px '+ry+'px at 50% 46%, rgba(0,0,0,'+s1+') 0%, rgba(0,0,0,'+s1+') 14%, rgba(0,0,0,'+s2+') 42%, rgba(0,0,0,'+s3+') 70%, #000 100%)';
   }
-
-  function loop(now){
-    requestAnimationFrame(loop);
-    if(!started){ return; }
-    const el = now - t0; let light;
-    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; if(mode==='room') plate.classList.add('show'); } }
+  function roomLoop(now){
+    if(mode!=='room'){ roomRunning=false; return; }
+    requestAnimationFrame(roomLoop);
+    const el=now-t0; let light;
+    if(phase==='rise'){ light=ease(Math.min(1,el/RISE)); if(el>=RISE){ phase='hold'; t0=now; plate.classList.add('show'); } }
     else if(phase==='hold'){ light=1; if(!sitting && el>=HOLD){ phase='fall'; t0=now; plate.classList.remove('show'); } }
     else if(phase==='fall'){ light=1-ease(Math.min(1,el/FALL)); if(el>=FALL){ phase='black'; t0=now; } }
-    else { light=0; if(el>=BLACK){ applyStep(); swapToCurrent(); phase='rise'; t0=now; } }
+    else {
+      light=0;
+      if(el>=BLACK){
+        if(pendingExit){ finishExit(); return; }
+        roomIdx=(roomIdx+roomPending+currentRoom.photos.length)%currentRoom.photos.length; roomPending=1;
+        swapRoom(); phase='rise'; t0=now;
+      }
+    }
     setReveal(light);
   }
+  function goFall(){ if(phase==='rise'||phase==='hold'){ phase='fall'; t0=performance.now(); plate.classList.remove('show'); setSit(false); } }
+  function setSit(on){ sitting=on; sitEl.classList.toggle('show', on && mode==='room' && phase==='hold'); if(!on) t0=performance.now(); }
 
-  function goFall(){
-    if(phase==='rise'||phase==='hold'){ phase='fall'; t0=performance.now(); plate.classList.remove('show'); setSit(false); }
+  function enterRoom(i){
+    filmstrip.classList.add('gone');
+    setTimeout(() => {
+      setMode('room'); currentRoom=rooms[i]; roomFrom=i; roomIdx=0; pendingExit=false; sitting=false;
+      preloadSrc(currentRoom.photos[0].src);   // dominant colour resolves on load; glow uses a fallback until then
+      swapRoom(); phase='rise'; t0=performance.now();
+      if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
+    }, reduce?60:900);
   }
-  function setSit(on){
-    sitting = on;
-    sitEl.classList.toggle('show', on && mode==='room' && phase==='hold');
-    if(!on){ t0 = performance.now(); }   // release: give it a fresh hold, then it fades
+  function exitToStrip(){ if(mode!=='room') return; pendingExit=true; goFall(); }
+  function finishExit(){
+    roomRunning=false; back.classList.remove('avail'); plate.classList.remove('show');
+    setMode('strip');
+    center=targetCenter=roomFrom; lastLabel=-1; renderStrip(); updateLabel();
+    filmstrip.classList.remove('gone');
+    pauseDrift(); startStrip();
   }
 
-  // ---- entry ----
-  let autoEnter=null;
+  back.addEventListener('click', e => { e.stopPropagation(); exitToStrip(); });
+
+  // ================= ENTRY + GLOBAL INPUT =================
+  let started=false, autoEnter=null;
   function startGallery(){
-    if(started) return;
-    clearTimeout(autoEnter);
+    if(started) return; started=true; clearTimeout(autoEnter);
     entry.classList.add('gone');
-    mode='wall'; wallIdx=0; roomIdx=0; started=true;
-    const c=current(); const first=preloadSrc(c.src);
-    const go=()=>{ swapToCurrent(); phase='rise'; t0=performance.now(); requestAnimationFrame(loop); };
-    if(first.complete && first.naturalWidth){ if(!dom[c.src]) dom[c.src]=dominant(first); go(); }
-    else { first.addEventListener('load', ()=>{ if(!dom[c.src]) dom[c.src]=dominant(first); go(); }, {once:true});
-           first.addEventListener('error', go, {once:true}); }
+    setMode('strip'); center=0; targetCenter=0; computeSpacing(); renderStrip(); updateLabel(); startStrip();
   }
-
-  // ---- interaction ----
-  function primaryTap(e){
-    if(e.target && e.target.closest && e.target.closest('#back')) return;   // handled below
+  addEventListener('pointerdown', e => {
+    if(e.target && e.target.closest && (e.target.closest('#back') || e.target.closest('.card'))) return;
     if(!started){ startGallery(); return; }
-    if(phase!=='hold') return;
-    if(mode==='wall'){ pending='enter'; goFall(); }
-    else { setSit(!sitting); }
-  }
-  addEventListener('pointerdown', primaryTap);
-  back.addEventListener('click', e => { e.stopPropagation(); if(started && mode==='room'){ pending='back'; goFall(); } });
+    if(mode==='room' && phase==='hold'){ setSit(!sitting); }
+  });
   addEventListener('keydown', e => {
     if(!started){ startGallery(); return; }
-    if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); pending='next'; goFall(); }
-    else if(e.key==='ArrowLeft'){ e.preventDefault(); pending='prev'; goFall(); }
-    else if(e.key==='Escape'){ if(mode==='room'){ pending='back'; goFall(); } }
+    if(mode==='strip'){
+      if(e.key==='ArrowRight'){ targetCenter=clampC(Math.round(center)+1); pauseDrift(); }
+      else if(e.key==='ArrowLeft'){ targetCenter=clampC(Math.round(center)-1); pauseDrift(); }
+      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); enterRoom(Math.round(center)); }
+    } else if(mode==='room'){
+      if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); roomPending=1; goFall(); }
+      else if(e.key==='ArrowLeft'){ e.preventDefault(); roomPending=-1; goFall(); }
+      else if(e.key==='Escape'){ exitToStrip(); }
+    }
   });
 
-  // idle: fade the quiet chrome (wordmark, back, cursor) after stillness
+  // idle: fade chrome + cursor after stillness
   let idle;
   function wake(){ document.body.classList.remove('ui-hidden'); clearTimeout(idle); idle=setTimeout(()=>document.body.classList.add('ui-hidden'), 3800); }
   ['mousemove','pointerdown','wheel','keydown','touchstart'].forEach(ev=>addEventListener(ev,wake,{passive:true}));
   wake();
 
-  // auto-enter after a beat if the visitor doesn't tap. The reveal is #000 by
-  // default (CSS), so the entry sits on true black without the loop running yet.
+  addEventListener('resize', () => { setMax(); computeSpacing(); if(mode==='strip') renderStrip(); });
+  setMax();
+
   autoEnter = setTimeout(startGallery, reduce?2000:5000);
 })();
