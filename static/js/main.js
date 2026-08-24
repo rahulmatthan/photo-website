@@ -61,10 +61,19 @@
     ixMenu.innerHTML = rooms.map((rm,i)=>'<a data-i="'+i+'">'+esc(rm.title)+'</a>').join('');
     rooms.forEach(rm=>preloadSrc(heroOf(rm).src));
     setTimeout(()=>rooms.forEach(rm=>clusterSrcs(rm).forEach(preloadSrc)), 500);   // warm every grid
-    [...ixScroll.children].forEach(el=>el.addEventListener('click',()=>choosePlace(+el.dataset.i)));
+    [...ixScroll.children].forEach(el=>el.addEventListener('click',()=>choosePlace(+el.dataset.i, 0)));
     [...ixMenu.children].forEach(el=>el.addEventListener('click',()=>scrollToPlace(+el.dataset.i)));
     ixScroll.addEventListener('scroll', onScroll, {passive:true});
+    // click a photograph in the grid → enter that place, starting the slideshow from that photo
+    ixScroll.addEventListener('click', e=>{ if(mode!=='strip'||entering) return; if(e.target.closest&&e.target.closest('.ix-item')) return; const k=hitTile(e); if(k>=0) choosePlace(activeIdx, k); });
+    ixScroll.addEventListener('mousemove', e=>{ if(mode==='strip') ixScroll.style.cursor = hitTile(e)>=0 ? 'pointer' : ''; });
     setCluster(0); markActive(); requestAnimationFrame(()=>{ measureHomes(); applyCluster(); });
+  }
+  function hitTile(e){
+    const t=ixCluster.children;
+    for(let i=0;i<t.length;i++){ const r=t[i].getBoundingClientRect();
+      if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom) return i; }
+    return -1;
   }
   function itemH(){ return (ixScroll.children[0]&&ixScroll.children[0].offsetHeight)||innerHeight; }
   function onScroll(){ if(!ixRaf) ixRaf=requestAnimationFrame(()=>{ ixRaf=0; applyCluster(); }); }
@@ -84,7 +93,10 @@
   }
   function measureHomes(){
     const cb=ixCluster.getBoundingClientRect(), ccx=cb.left+cb.width/2, ccy=cb.top+cb.height/2;
-    homes=[...ixCluster.children].map(t=>{ const r=t.getBoundingClientRect(); return {vx:r.left+r.width/2-ccx, vy:r.top+r.height/2-ccy}; });
+    homes=[...ixCluster.children].map((t,i)=>{ const r=t.getBoundingClientRect();
+      const vx=r.left+r.width/2-ccx, vy=r.top+r.height/2-ccy;
+      // polar home + per-tile swirl/spin, so tiles spiral out along curved (murmuration) arcs
+      return {vx,vy,r:Math.hypot(vx,vy)||1,ang:Math.atan2(vy,vx),sw:2.3*(1+0.3*Math.sin(i*1.7)),spin:13*Math.sin(i*2.3)}; });
   }
   // scroll-driven grid: a dead zone holds it imploded near a place's centre (a magnetic hold),
   // then each tile flies outward as you push past. Mandatory scroll-snap "clicks" it back home.
@@ -96,22 +108,27 @@
     if(active!==activeIdx){ activeIdx=active; markActive(); }
     let a=Math.max(0,Math.min(1,(Math.abs(p-active)-0.12)/0.36));   // flat dead zone near centre, then ramp
     const amt=a*a*(3-2*a);                                          // smoothstep
-    const K=2.6, op=1-amt, kids=ixCluster.children;
-    for(let i=0;i<kids.length;i++){ const h=homes[i]||{vx:0,vy:0};
-      kids[i].style.transform='translate('+(h.vx*K*amt).toFixed(1)+'px,'+(h.vy*K*amt).toFixed(1)+'px) scale('+(1-0.14*amt).toFixed(3)+')';
+    const OUT=1.5, op=1-amt, kids=ixCluster.children;
+    for(let i=0;i<kids.length;i++){ const h=homes[i]; if(!h) continue;
+      const ang=h.ang+amt*h.sw, dist=h.r*(1+amt*OUT);              // spiral out along a curved arc
+      const tx=dist*Math.cos(ang)-h.vx, ty=dist*Math.sin(ang)-h.vy;
+      kids[i].style.transform='translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) rotate('+(amt*h.spin).toFixed(1)+'deg) scale('+(1-0.62*amt).toFixed(3)+')';
       kids[i].style.opacity=op.toFixed(3);
     }
   }
   // choose a place → blow the grid apart toward the viewer while the index dissolves into the room
-  function choosePlace(i){
+  // choose a place (optionally starting the slideshow at photo `startAt`) → the grid swirls apart
+  // and dissipates as the index dissolves into the room.
+  function choosePlace(i, startAt){
     if(mode!=='strip'||entering) return;
     entering=true;
     const kids=ixCluster.children;
-    for(let k=0;k<kids.length;k++){ const h=homes[k]||{vx:0,vy:0};
+    for(let k=0;k<kids.length;k++){ const h=homes[k]||{r:1,ang:0,sw:2,spin:0,vx:0,vy:0};
+      const ang=h.ang+h.sw*1.25, dist=h.r*3.4;
       kids[k].style.transition='transform 1.1s cubic-bezier(.5,0,.3,1),opacity 1s ease';
-      kids[k].style.transform='translate('+(h.vx*3.6).toFixed(1)+'px,'+(h.vy*3.6).toFixed(1)+'px) scale(1.5)';
+      kids[k].style.transform='translate('+(dist*Math.cos(ang)-h.vx).toFixed(1)+'px,'+(dist*Math.sin(ang)-h.vy).toFixed(1)+'px) rotate('+(h.spin*1.6).toFixed(1)+'deg) scale(.18)';
       kids[k].style.opacity='0'; }
-    goFullscreen(); enterRoom(i);
+    goFullscreen(); enterRoom(i, startAt||0);
   }
   function resetIndex(scrollToI){
     if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el){ ixScroll.scrollTop=el.offsetTop; activeIdx=scrollToI; } }
@@ -119,7 +136,7 @@
     [...ixCluster.children].forEach(t=>{ t.style.transition=''; t.style.transform='none'; t.style.opacity='1'; });
     requestAnimationFrame(()=>{ measureHomes(); applyCluster(); });
   }
-  function chooseCentred(){ choosePlace(activeIdx); }
+  function chooseCentred(){ choosePlace(activeIdx, 0); }
 
   // ================= SPOTLIGHT ROOM =================
   let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
@@ -164,16 +181,18 @@
 
   let enterTimers=[];
   function clearEnterTimers(){ enterTimers.forEach(clearTimeout); enterTimers=[]; }
-  function startRoom(i){
-    setMode('room'); currentRoom=rooms[i]; roomFrom=i; roomIdx=0; pendingExit=false; sitting=false;
-    preloadSrc(currentRoom.photos[0].src);   // dominant colour resolves on load; glow uses a fallback until then
+  function startRoom(i, startAt){
+    setMode('room'); currentRoom=rooms[i]; roomFrom=i;
+    roomIdx=Math.max(0, Math.min(currentRoom.photos.length-1, startAt||0));   // slideshow begins here
+    pendingExit=false; sitting=false;
+    preloadSrc(currentRoom.photos[roomIdx].src);   // dominant colour resolves on load; glow uses a fallback until then
     swapRoom(); phase='rise'; t0=performance.now();
     if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
   }
   // A slow, deliberate entry: the index dissolves to black, the title fades in, then the
   // subtitle, both breathe, fade to black, wait in darkness, then the print rises.
   const FADE_TXT = 2000;   // matches the CSS opacity transition on .h / .p
-  function enterRoom(i){
+  function enterRoom(i, startAt){
     entering=true;
     clearEnterTimers();
     enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
@@ -189,7 +208,7 @@
     t += FADE_TXT + T.hold;                                 // wait for subtitle to arrive, then breathe
     enterTimers.push(setTimeout(()=>enterMsg.classList.remove('h-in','p-in'), t)); // 4. message fades to black
     t += FADE_TXT + T.black;                                // wait for it to fade out, then a beat of pure black
-    enterTimers.push(setTimeout(()=>startRoom(i), t));      // 5. the first print rises
+    enterTimers.push(setTimeout(()=>startRoom(i, startAt||0), t));   // 5. the chosen print rises
   }
   function exitToStrip(){ if(mode!=='room') return; pendingExit=true; goFall(); }
   function finishExit(){

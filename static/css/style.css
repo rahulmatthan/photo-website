@@ -35,7 +35,7 @@ body.strip .indexView{display:block;}
 /* the image grid (right) — a masonry aligned to its top + left, aspect retained (ragged bottom is fine).
    It explodes/reforms driven by scroll, so the transform is set per-frame in JS. */
 .ix-cluster{position:absolute;top:clamp(80px,12.5vh,124px);right:clamp(2rem,4vw,3.6rem);width:min(43vw,660px);z-index:2;pointer-events:none;
-  columns:3;column-gap:clamp(8px,.85vw,15px);}
+  overflow:hidden;columns:3;column-gap:clamp(8px,.85vw,15px);}
 .ix-thumb{width:100%;margin:0 0 clamp(8px,.85vw,15px);break-inside:avoid;will-change:transform,opacity;}
 .ix-thumb img{width:100%;height:auto;display:block;box-shadow:0 14px 36px rgba(0,0,0,.5);filter:brightness(.92);}
 /* the scrolling names (left), masked so they dissolve into the top band and the floor */
