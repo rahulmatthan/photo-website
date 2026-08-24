@@ -108,12 +108,12 @@
     if(active!==activeIdx){ activeIdx=active; markActive(); }
     let a=Math.max(0,Math.min(1,(Math.abs(p-active)-0.12)/0.36));   // flat dead zone near centre, then ramp
     const amt=a*a*(3-2*a);                                          // smoothstep
-    const OUT=1.5, op=1-amt, kids=ixCluster.children;
+    const SWIRL=1.9, kids=ixCluster.children;                     // spiral inward to a single vanishing point
     for(let i=0;i<kids.length;i++){ const h=homes[i]; if(!h) continue;
-      const ang=h.ang+amt*h.sw, dist=h.r*(1+amt*OUT);              // spiral out along a curved arc
-      const tx=dist*Math.cos(ang)-h.vx, ty=dist*Math.sin(ang)-h.vy;
-      kids[i].style.transform='translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) rotate('+(amt*h.spin).toFixed(1)+'deg) scale('+(1-0.62*amt).toFixed(3)+')';
-      kids[i].style.opacity=op.toFixed(3);
+      const radius=h.r*(1-amt), ang=h.ang+amt*SWIRL;              // shrink the radius to the centre, swirling as it goes
+      const tx=radius*Math.cos(ang)-h.vx, ty=radius*Math.sin(ang)-h.vy;
+      kids[i].style.transform='translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) scale('+Math.max(0,1-amt).toFixed(3)+')';
+      kids[i].style.opacity=(1-amt*amt).toFixed(3);               // stay visible, then vanish at the point
     }
   }
   // choose a place → blow the grid apart toward the viewer while the index dissolves into the room
@@ -123,10 +123,9 @@
     if(mode!=='strip'||entering) return;
     entering=true;
     const kids=ixCluster.children;
-    for(let k=0;k<kids.length;k++){ const h=homes[k]||{r:1,ang:0,sw:2,spin:0,vx:0,vy:0};
-      const ang=h.ang+h.sw*1.25, dist=h.r*3.4;
-      kids[k].style.transition='transform 1.1s cubic-bezier(.5,0,.3,1),opacity 1s ease';
-      kids[k].style.transform='translate('+(dist*Math.cos(ang)-h.vx).toFixed(1)+'px,'+(dist*Math.sin(ang)-h.vy).toFixed(1)+'px) rotate('+(h.spin*1.6).toFixed(1)+'deg) scale(.18)';
+    for(let k=0;k<kids.length;k++){ const h=homes[k]||{vx:0,vy:0};
+      kids[k].style.transition='transform 1.05s cubic-bezier(.6,0,.3,1),opacity .95s ease';
+      kids[k].style.transform='translate('+(-h.vx).toFixed(1)+'px,'+(-h.vy).toFixed(1)+'px) scale(0)';   // suck into the vanishing point
       kids[k].style.opacity='0'; }
     goFullscreen(); enterRoom(i, startAt||0);
   }
