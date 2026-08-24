@@ -40,11 +40,11 @@ body.strip .indexView{display:block;}
 .ix-thumb img{width:100%;height:auto;display:block;box-shadow:0 14px 36px rgba(0,0,0,.5);filter:brightness(.92);}
 /* the scrolling names (left), masked so they dissolve into the top band and the floor */
 .ix-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;z-index:3;
-  scroll-snap-type:y proximity;
+  scroll-snap-type:y mandatory;
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);
           mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);}
 .ix-scroll::-webkit-scrollbar{width:0;height:0;}
-.ix-item{position:relative;display:flex;flex-direction:column;justify-content:center;height:88vh;scroll-snap-align:center;
+.ix-item{position:relative;display:flex;flex-direction:column;justify-content:center;height:100vh;scroll-snap-align:center;
   padding-left:clamp(1.8rem,6vw,5rem);text-decoration:none;color:inherit;cursor:pointer;max-width:47vw;}
 .ix-num{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted2);margin-bottom:1.1rem;transition:color .5s ease;}
 .ix-loc{display:block;font-family:var(--didone);font-size:clamp(2.6rem,7.4vw,6.4rem);line-height:.96;letter-spacing:-.012em;color:var(--ink2);transition:color .6s ease;}

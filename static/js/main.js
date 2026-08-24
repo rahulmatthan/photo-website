@@ -49,7 +49,7 @@
 
   // ================= INDEX (overview) =================
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  let entering=false, activeIdx=0, clusterIdx=-1, targetP=0, displayP=0, homes=[], clRaf=0;
+  let entering=false, activeIdx=0, clusterIdx=-1, homes=[], ixRaf=0;
   function clusterSrcs(rm){ return rm.photos.slice(0,9).map(p=>p.card||p.src); }
   function buildIndex(){
     const N=rooms.length, tot=String(N).padStart(2,'0');
@@ -64,10 +64,10 @@
     [...ixScroll.children].forEach(el=>el.addEventListener('click',()=>choosePlace(+el.dataset.i)));
     [...ixMenu.children].forEach(el=>el.addEventListener('click',()=>scrollToPlace(+el.dataset.i)));
     ixScroll.addEventListener('scroll', onScroll, {passive:true});
-    setCluster(0); markActive(); requestAnimationFrame(measureHomes); startLoop();
+    setCluster(0); markActive(); requestAnimationFrame(()=>{ measureHomes(); applyCluster(); });
   }
   function itemH(){ return (ixScroll.children[0]&&ixScroll.children[0].offsetHeight)||innerHeight; }
-  function onScroll(){ targetP=ixScroll.scrollTop/itemH(); startLoop(); }
+  function onScroll(){ if(!ixRaf) ixRaf=requestAnimationFrame(()=>{ ixRaf=0; applyCluster(); }); }
   function markActive(){
     [...ixScroll.children].forEach((el,i)=>el.classList.toggle('active', i===activeIdx));
     [...ixMenu.children].forEach((el,i)=>el.classList.toggle('on', i===activeIdx));
@@ -86,24 +86,19 @@
     const cb=ixCluster.getBoundingClientRect(), ccx=cb.left+cb.width/2, ccy=cb.top+cb.height/2;
     homes=[...ixCluster.children].map(t=>{ const r=t.getBoundingClientRect(); return {vx:r.left+r.width/2-ccx, vy:r.top+r.height/2-ccy}; });
   }
-  function startLoop(){ if(!clRaf) clRaf=requestAnimationFrame(loop); }
-  function loop(){
-    if(mode!=='strip'){ clRaf=0; return; }
-    clRaf=requestAnimationFrame(loop);
-    displayP += (targetP-displayP)*0.14;
-    if(Math.abs(targetP-displayP)<0.0005) displayP=targetP;
-    applyCluster();
-  }
+  // scroll-driven grid: a dead zone holds it imploded near a place's centre (a magnetic hold),
+  // then each tile flies outward as you push past. Mandatory scroll-snap "clicks" it back home.
   function applyCluster(){
-    if(entering) return;
-    const N=rooms.length, active=Math.max(0,Math.min(N-1,Math.round(displayP)));
+    if(entering || mode!=='strip') return;
+    const N=rooms.length, p=ixScroll.scrollTop/itemH();
+    const active=Math.max(0,Math.min(N-1,Math.round(p)));
     if(active!==clusterIdx){ setCluster(active); measureHomes(); }
     if(active!==activeIdx){ activeIdx=active; markActive(); }
-    const dist=displayP-active, amt=Math.min(1,Math.abs(dist)*2);
-    const K=2.7, s=amt*amt*(3-2*amt), op=1-s;            // smoothstep fade
-    const kids=ixCluster.children;
+    let a=Math.max(0,Math.min(1,(Math.abs(p-active)-0.12)/0.36));   // flat dead zone near centre, then ramp
+    const amt=a*a*(3-2*a);                                          // smoothstep
+    const K=2.6, op=1-amt, kids=ixCluster.children;
     for(let i=0;i<kids.length;i++){ const h=homes[i]||{vx:0,vy:0};
-      kids[i].style.transform='translate('+(h.vx*K*amt).toFixed(1)+'px,'+(h.vy*K*amt).toFixed(1)+'px) scale('+(1-0.16*amt).toFixed(3)+')';
+      kids[i].style.transform='translate('+(h.vx*K*amt).toFixed(1)+'px,'+(h.vy*K*amt).toFixed(1)+'px) scale('+(1-0.14*amt).toFixed(3)+')';
       kids[i].style.opacity=op.toFixed(3);
     }
   }
@@ -119,10 +114,10 @@
     goFullscreen(); enterRoom(i);
   }
   function resetIndex(scrollToI){
-    if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el){ ixScroll.scrollTop=el.offsetTop; targetP=displayP=scrollToI; activeIdx=scrollToI; } }
+    if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el){ ixScroll.scrollTop=el.offsetTop; activeIdx=scrollToI; } }
     markActive(); clusterIdx=-1; setCluster(activeIdx);
     [...ixCluster.children].forEach(t=>{ t.style.transition=''; t.style.transform='none'; t.style.opacity='1'; });
-    requestAnimationFrame(measureHomes); startLoop();
+    requestAnimationFrame(()=>{ measureHomes(); applyCluster(); });
   }
   function chooseCentred(){ choosePlace(activeIdx); }
 
@@ -237,7 +232,7 @@
   ['mousemove','pointerdown','wheel','keydown','touchstart'].forEach(ev=>addEventListener(ev,wake,{passive:true}));
   wake();
 
-  addEventListener('resize', () => { setMax(); if(mode==='strip'){ targetP=ixScroll.scrollTop/itemH(); measureHomes(); } });
+  addEventListener('resize', () => { setMax(); if(mode==='strip'){ measureHomes(); applyCluster(); } });
   setMax();
 
   // land straight on the index
