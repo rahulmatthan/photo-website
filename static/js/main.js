@@ -1,14 +1,13 @@
-// The gallery. Default view is a full-screen portfolio BOOK — leaf through the
-// spreads (one location each: a matted plate on the left page, an editorial
-// label on the right). Opening a plate flips into the spotlight — the lit framed
-// print for that location, cycling its photographs. "Back" returns to the book.
+// The gallery. Default view is a dark, continuously-scrolling editorial INDEX of places
+// (giant serif names + hero prints). Choosing a place dissolves into the spotlight ROOM —
+// the lit framed print for that location, cycling its photographs. "Back" returns to the index.
 (function(){
   const G = window.GALLERY || {rooms:[]};
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
-        reveal=$('reveal'), cover=$('cover'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
-  const book=$('book'), spread=$('spread'), sheet=$('sheet'), leaf=$('leaf');
+        reveal=$('reveal'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
+  const indexView=$('indexView'), ixScroll=$('ixScroll'), ixCount=$('ixCount');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -45,106 +44,63 @@
   const ease = x => x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2;
   const clampC = v => Math.max(0, Math.min(rooms.length-1, v));
 
-  let mode='entry';   // entry | strip (the book) | room
+  let mode='entry';   // entry | strip (the index) | room
   function setMode(m){ mode=m; document.body.classList.toggle('strip', m==='strip'); document.body.classList.toggle('room', m==='room'); }
 
-  // ================= BOOK (overview) =================
-  const FLIP = reduce ? 420 : 1250;
+  // ================= INDEX (overview) =================
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  // one leaf of the book: the photograph centred at full aspect, plus a small caption
-  function sheetHTML(rm){ const h=heroOf(rm);
-    return '<div class="head"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>'
-      +'<div class="art"><img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'
-      +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
-      +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
-      +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
-
-  let bookIdx=0, flipping=false, wheelLock=false;
-  function showSpread(i){
-    bookIdx=clampC(i);
-    sheet.innerHTML=sheetHTML(rooms[bookIdx]);
-    preloadSrc(heroOf(rooms[bookIdx]).src);                 // warm current + neighbours for quick flips
-    if(rooms[bookIdx+1]) preloadSrc(heroOf(rooms[bookIdx+1]).src);
-    if(rooms[bookIdx-1]) preloadSrc(heroOf(rooms[bookIdx-1]).src);
+  let entering=false, ixRaf=0;
+  function heroImg(rm){ const h=heroOf(rm); return h.card||h.src; }
+  function buildIndex(){
+    const N=rooms.length, tot=String(N).padStart(2,'0');
+    ixScroll.innerHTML = rooms.map((rm,i)=>
+      '<a class="ix-item" data-i="'+i+'">'
+      +'<figure class="ix-fig"><img src="'+heroImg(rm)+'" alt="'+esc(rm.title)+'"></figure>'
+      +'<div class="ix-caption"><span class="ix-num">'+String(i+1).padStart(2,'0')+' / '+tot+'</span>'
+      +'<span class="ix-loc">'+esc(rm.title)+'</span>'
+      +'<span class="ix-sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span></div></a>'
+    ).join('');
+    ixCount.textContent = tot+' places';
+    rooms.forEach(rm=>preloadSrc(heroOf(rm).src));
+    const io=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting) en.target.classList.add('in'); }),{threshold:.18});
+    [...ixScroll.children].forEach(el=>io.observe(el));
+    ixScroll.addEventListener('scroll', ()=>{ if(!ixRaf) ixRaf=requestAnimationFrame(()=>{ ixRaf=0; parallax(); }); }, {passive:true});
+    parallax();
   }
-
-  // ---- the bending page-turn: a chain of nested strips whose tangent sweeps an arc, so the paper
-  //      curves like real paper instead of pivoting flat. Adapted from Meng To's ThreeUI sketchbook
-  //      (github.com/MengTo/threeui, MIT). Each strip clips a vertical slice of a full-page clone.
-  const NST = reduce ? 7 : 15;   // number of strips — more = smoother curve
-  const BETA = 0.62;             // peak bend of the arc, in radians
-  let turnStrips=[];
-  function buildLeaf(rm){
-    leaf.textContent='';
-    leaf.style.setProperty('--n', NST);
-    leaf.style.setProperty('--bw', sheet.clientWidth+'px');
-    const inner=sheetHTML(rm); turnStrips=[]; let host=leaf;
-    for(let i=0;i<NST;i++){
-      const s=document.createElement('div'); s.className='strip'; s.style.setProperty('--i',i);
-      const f=document.createElement('div'); f.className='face';
-      const cl=document.createElement('div'); cl.className='clone'; cl.innerHTML=inner;
-      const sh=document.createElement('div'); sh.className='sh';
-      f.appendChild(cl); f.appendChild(sh); s.appendChild(f);
-      host.appendChild(s); host=s; turnStrips.push(s);
+  // subtle parallax: the print and the name drift at slightly different rates as they pass centre
+  function parallax(){
+    if(entering) return;
+    const vh=innerHeight, cy=vh/2, kids=ixScroll.children;
+    for(let k=0;k<kids.length;k++){
+      const el=kids[k], r=el.getBoundingClientRect();
+      if(r.bottom<-vh*0.6 || r.top>vh*1.6) continue;
+      const d=(r.top+r.height/2-cy)/vh;                       // -1..1 across the viewport
+      const img=el.querySelector('img');   if(img) img.style.transform='translateY('+(d*8).toFixed(2)+'%) scale(1.12)';
+      const cap=el.querySelector('.ix-caption'); if(cap) cap.style.transform='translateY(calc(-50% + '+(d*-2.4).toFixed(2)+'vh))';
     }
   }
-  function applyTurn(t){
-    const beta=BETA*Math.sin(Math.PI*t), D=180/Math.PI;
-    const tt=Math.PI*t + beta, td=2*beta/NST;
-    leaf.style.setProperty('--tt',(tt*D).toFixed(2)+'deg');
-    leaf.style.setProperty('--td',(td*D).toFixed(3)+'deg');
-    for(let i=0;i<turnStrips.length;i++){
-      const l1=Math.abs(Math.cos(tt-i*td)), l2=Math.abs(Math.cos(tt-(i+1)*td));
-      const st=turnStrips[i].style;
-      st.setProperty('--a1',((1-l1)*.5).toFixed(3));
-      st.setProperty('--a2',((1-l2)*.5).toFixed(3));
-    }
+  // choose a place → the print zooms and the index dissolves into the dark room
+  function choosePlace(a){
+    if(mode!=='strip'||entering) return;
+    const img=a.querySelector('.ix-fig img');
+    if(img){ img.style.transition='transform 1.25s cubic-bezier(.5,0,.2,1),filter 1.25s ease';
+      img.style.transform='translateY(0) scale(1.4)'; img.style.filter='brightness(.66)'; }
+    a.classList.add('leaving');
+    goFullscreen();
+    enterRoom(+a.dataset.i);
   }
-  // Forward: the current page bends away to the left (t 0→1), revealing the next beneath.
-  // Backward: the previous page bends back in from the left (t 1→0), landing over the current.
-  function turn(dir){
-    if(flipping || mode!=='strip') return;
-    const j=bookIdx+dir;
-    if(j<0 || j>rooms.length-1) return;
-    flipping=true;
-    const leafRoom = dir>0 ? rooms[bookIdx] : rooms[j];      // the page that visibly turns
-    const baseRoom = dir>0 ? rooms[j] : rooms[bookIdx];      // the page beneath / revealed
-    sheet.innerHTML=sheetHTML(baseRoom);
-    buildLeaf(leafRoom);
-    leaf.classList.remove('hidden');
-    applyTurn(dir>0 ? 0 : 1);
-    const t0=performance.now();
-    function frame(now){
-      const p=Math.min(1,(now-t0)/FLIP), e=ease(p);
-      applyTurn(dir>0 ? e : 1-e);
-      if(p<1){ requestAnimationFrame(frame); return; }
-      showSpread(j);
-      leaf.classList.add('hidden'); leaf.textContent='';
-      leaf.style.removeProperty('--tt'); leaf.style.removeProperty('--td');
-      flipping=false;
-    }
-    requestAnimationFrame(frame);
+  ixScroll.addEventListener('click', e=>{ const a=e.target.closest('.ix-item'); if(a) choosePlace(a); });
+  function resetIndex(scrollToI){
+    [...ixScroll.children].forEach(el=>{ el.classList.remove('leaving');
+      const im=el.querySelector('img'); if(im){ im.style.transition=''; im.style.transform='scale(1.12)'; im.style.filter=''; } });
+    if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el) ixScroll.scrollTop=el.offsetTop; }
+    parallax();
   }
-
-  // input: swipe / two-finger scroll to turn; tap a plate or "enter" cue to open the room
-  let bStartX=0,bStartY=0,bDown=false,bMoved=false;
-  spread.addEventListener('pointerdown', e=>{ if(mode!=='strip'||flipping) return; bDown=true; bMoved=false; bStartX=e.clientX; bStartY=e.clientY; });
-  addEventListener('pointermove', e=>{ if(bDown && (Math.abs(e.clientX-bStartX)>10||Math.abs(e.clientY-bStartY)>10)) bMoved=true; });
-  addEventListener('pointerup', e=>{
-    if(!bDown) return; bDown=false;
-    const dx=e.clientX-bStartX;
-    if(bMoved && Math.abs(dx)>60){ turn(dx<0?1:-1); return; }   // swipe left = forward
-    if(!bMoved && e.target && e.target.closest && (e.target.closest('.pimg') || e.target.closest('[data-enter]'))){
-      enterRoom(bookIdx);
-    }
-  });
-  addEventListener('wheel', e=>{
-    if(mode!=='strip'||flipping||wheelLock) return;
-    const d=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
-    if(Math.abs(d)<8) return;
-    wheelLock=true; setTimeout(()=>wheelLock=false, FLIP+140);
-    turn(d>0?1:-1);
-  },{passive:true});
+  function chooseCentred(){
+    const cy=innerHeight/2; let best=null,bd=1e9;
+    [...ixScroll.children].forEach(el=>{ const r=el.getBoundingClientRect(); const c=Math.abs(r.top+r.height/2-cy); if(c<bd){bd=c;best=el;} });
+    if(best) choosePlace(best);
+  }
 
   // ================= SPOTLIGHT ROOM =================
   let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
@@ -195,14 +151,15 @@
     swapRoom(); phase='rise'; t0=performance.now();
     if(!roomRunning){ roomRunning=true; requestAnimationFrame(roomLoop); }
   }
-  // A slow, deliberate entry: book -> black, settle, title fades in, then the
+  // A slow, deliberate entry: the index dissolves to black, the title fades in, then the
   // subtitle, both breathe, fade to black, wait in darkness, then the print rises.
   const FADE_TXT = 2000;   // matches the CSS opacity transition on .h / .p
   function enterRoom(i){
+    entering=true;
     clearEnterTimers();
     enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
     enterMsg.classList.remove('h-in','p-in');
-    book.classList.add('gone');                            // 1. book fades to black (1.3s)
+    indexView.classList.add('gone');                       // 1. index dissolves to black
     const T = reduce
       ? { pre:500,  subDelay:400,  hold:500,  black:400 }
       : { pre:1800, subDelay:1600, hold:1600, black:1300 };
@@ -219,8 +176,9 @@
   function finishExit(){
     roomRunning=false; back.classList.remove('avail'); plate.classList.remove('show');
     clearEnterTimers(); enterMsg.classList.remove('h-in','p-in');
-    setMode('strip'); showSpread(roomFrom);                // reopen the book at the location we left
-    book.classList.remove('gone');
+    setMode('strip'); entering=false;
+    resetIndex(roomFrom);                                  // reopen the index at the place we left
+    indexView.classList.remove('gone');
   }
 
   back.addEventListener('click', e => { e.stopPropagation(); exitToStrip(); });
@@ -230,32 +188,18 @@
     try{ const el=document.documentElement, rq=el.requestFullscreen||el.webkitRequestFullscreen;
       if(rq && !document.fullscreenElement && !document.webkitFullscreenElement){ const r=rq.call(el); if(r&&r.catch) r.catch(()=>{}); } }catch(e){}
   }
-  let started=false, autoEnter=null;
-  const readyAt = performance.now() + (reduce?0:350);      // ignore any stray pointer event at load
-  // The site opens closed on the leather folio; the first gesture swings the cover
-  // open on its spine, revealing the catalogue behind it.
-  function openFolio(){
-    if(started || performance.now() < readyAt) return;
-    started=true; clearTimeout(autoEnter);
-    cover.classList.add('open');
-    let done=false;
-    const finish=()=>{ if(done) return; done=true;
-      cover.removeEventListener('transitionend',finish);
-      document.body.classList.remove('sealed'); cover.classList.add('gone'); setMode('strip'); };
-    cover.addEventListener('transitionend',finish);
-    setTimeout(finish, reduce?800:2000);                     // safety past the open transition
-  }
   addEventListener('pointerdown', e => {
-    if(!started){ if(e.target && e.target.closest && e.target.closest('#back')) return; goFullscreen(); openFolio(); return; }
-    if(e.target && e.target.closest && (e.target.closest('#back') || e.target.closest('#spread'))) return;
-    if(mode==='room' && phase==='hold'){ setSit(!sitting); }
+    if(mode==='room' && phase==='hold'){
+      if(e.target && e.target.closest && e.target.closest('#back')) return;
+      setSit(!sitting);
+    }
   });
   addEventListener('keydown', e => {
-    if(!started){ goFullscreen(); openFolio(); return; }
     if(mode==='strip'){
-      if(e.key==='ArrowRight'){ turn(1); }
-      else if(e.key==='ArrowLeft'){ turn(-1); }
-      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); enterRoom(bookIdx); }
+      if(e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); ixScroll.scrollBy({top:innerHeight*0.9,behavior:'smooth'}); }
+      else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); ixScroll.scrollBy({top:-innerHeight*0.9,behavior:'smooth'}); }
+      else if(e.key==='Home'){ e.preventDefault(); ixScroll.scrollTo({top:0,behavior:'smooth'}); }
+      else if(e.key==='Enter'){ e.preventDefault(); chooseCentred(); }
     } else if(mode==='room'){
       if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); roomPending=1; goFall(); }
       else if(e.key==='ArrowLeft'){ e.preventDefault(); roomPending=-1; goFall(); }
@@ -269,10 +213,9 @@
   ['mousemove','pointerdown','wheel','keydown','touchstart'].forEach(ev=>addEventListener(ev,wake,{passive:true}));
   wake();
 
-  addEventListener('resize', setMax);
+  addEventListener('resize', () => { setMax(); if(mode==='strip') parallax(); });
   setMax();
 
-  // open sealed: the first page is rendered behind the closed leather cover
-  setMode('entry'); document.body.classList.add('sealed'); showSpread(0);
-  autoEnter = setTimeout(openFolio, reduce?3000:7000);
+  // land straight on the index
+  setMode('strip'); buildIndex();
 })();
