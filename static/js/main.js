@@ -8,8 +8,7 @@
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
-  const book=$('book'), spread=$('spread'), sheet=$('sheet'),
-        leaf=$('leaf'), leafFront=$('leafFront');
+  const book=$('book'), spread=$('spread'), sheet=$('sheet'), leaf=$('leaf');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -50,8 +49,7 @@
   function setMode(m){ mode=m; document.body.classList.toggle('strip', m==='strip'); document.body.classList.toggle('room', m==='room'); }
 
   // ================= BOOK (overview) =================
-  const FLIP = reduce ? 350 : 1200;
-  document.documentElement.style.setProperty('--flip', FLIP+'ms');
+  const FLIP = reduce ? 420 : 1250;
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // one leaf of the book: the photograph centred at full aspect, plus a small caption
   function sheetHTML(rm){ const h=heroOf(rm);
@@ -59,8 +57,7 @@
       +'<div class="art"><img class="pimg" src="'+(h.card||h.src)+'" alt="'+esc(rm.title)+'"></div>'
       +'<div class="cap"><span class="loc">'+esc(rm.title)+'</span>'
       +'<span class="sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span>'
-      +'<span class="enter" data-enter="1">enter the gallery</span></div>'
-      +'<span class="peel" aria-hidden="true"></span>'; }
+      +'<span class="enter" data-enter="1">enter the gallery</span></div>'; }
 
   let bookIdx=0, flipping=false, wheelLock=false;
   function showSpread(i){
@@ -70,30 +67,63 @@
     if(rooms[bookIdx+1]) preloadSrc(heroOf(rooms[bookIdx+1]).src);
     if(rooms[bookIdx-1]) preloadSrc(heroOf(rooms[bookIdx-1]).src);
   }
-  // The whole page turns as one leaf, hinged at the spine edge — so the image
-  // turns WITH the page in both directions. Forward: the current page lifts and
-  // swings away (its back hidden past 90°), revealing the next beneath. Backward:
-  // the previous page swings back in from the left and lands on top.
+
+  // ---- the bending page-turn: a chain of nested strips whose tangent sweeps an arc, so the paper
+  //      curves like real paper instead of pivoting flat. Adapted from Meng To's ThreeUI sketchbook
+  //      (github.com/MengTo/threeui, MIT). Each strip clips a vertical slice of a full-page clone.
+  const NST = reduce ? 7 : 15;   // number of strips — more = smoother curve
+  const BETA = 0.62;             // peak bend of the arc, in radians
+  let turnStrips=[];
+  function buildLeaf(rm){
+    leaf.textContent='';
+    leaf.style.setProperty('--n', NST);
+    leaf.style.setProperty('--bw', sheet.clientWidth+'px');
+    const inner=sheetHTML(rm); turnStrips=[]; let host=leaf;
+    for(let i=0;i<NST;i++){
+      const s=document.createElement('div'); s.className='strip'; s.style.setProperty('--i',i);
+      const f=document.createElement('div'); f.className='face';
+      const cl=document.createElement('div'); cl.className='clone'; cl.innerHTML=inner;
+      const sh=document.createElement('div'); sh.className='sh';
+      f.appendChild(cl); f.appendChild(sh); s.appendChild(f);
+      host.appendChild(s); host=s; turnStrips.push(s);
+    }
+  }
+  function applyTurn(t){
+    const beta=BETA*Math.sin(Math.PI*t), D=180/Math.PI;
+    const tt=Math.PI*t + beta, td=2*beta/NST;
+    leaf.style.setProperty('--tt',(tt*D).toFixed(2)+'deg');
+    leaf.style.setProperty('--td',(td*D).toFixed(3)+'deg');
+    for(let i=0;i<turnStrips.length;i++){
+      const l1=Math.abs(Math.cos(tt-i*td)), l2=Math.abs(Math.cos(tt-(i+1)*td));
+      const st=turnStrips[i].style;
+      st.setProperty('--a1',((1-l1)*.5).toFixed(3));
+      st.setProperty('--a2',((1-l2)*.5).toFixed(3));
+    }
+  }
+  // Forward: the current page bends away to the left (t 0→1), revealing the next beneath.
+  // Backward: the previous page bends back in from the left (t 1→0), landing over the current.
   function turn(dir){
     if(flipping || mode!=='strip') return;
     const j=bookIdx+dir;
     if(j<0 || j>rooms.length-1) return;
     flipping=true;
-    if(dir>0){
-      leafFront.innerHTML=sheetHTML(rooms[bookIdx]);        // current page rides the leaf, turns away
-      sheet.innerHTML=sheetHTML(rooms[j]);                  // next page revealed beneath
-      leaf.className='leaf fwd';                            // keyframe flip (with a little curl)
-    } else {
-      leafFront.innerHTML=sheetHTML(rooms[j]);              // previous page swings back in
-      sheet.innerHTML=sheetHTML(rooms[bookIdx]);            // current stays beneath until covered
-      leaf.className='leaf bwd';
+    const leafRoom = dir>0 ? rooms[bookIdx] : rooms[j];      // the page that visibly turns
+    const baseRoom = dir>0 ? rooms[j] : rooms[bookIdx];      // the page beneath / revealed
+    sheet.innerHTML=sheetHTML(baseRoom);
+    buildLeaf(leafRoom);
+    leaf.classList.remove('hidden');
+    applyTurn(dir>0 ? 0 : 1);
+    const t0=performance.now();
+    function frame(now){
+      const p=Math.min(1,(now-t0)/FLIP), e=ease(p);
+      applyTurn(dir>0 ? e : 1-e);
+      if(p<1){ requestAnimationFrame(frame); return; }
+      showSpread(j);
+      leaf.classList.add('hidden'); leaf.textContent='';
+      leaf.style.removeProperty('--tt'); leaf.style.removeProperty('--td');
+      flipping=false;
     }
-    let done=false;
-    const finish=()=>{ if(done) return; done=true;
-      leaf.removeEventListener('animationend',finish);
-      showSpread(j); leaf.className='leaf hidden'; flipping=false; };
-    leaf.addEventListener('animationend',finish);
-    setTimeout(finish, FLIP+300);                           // safety net if animationend is missed
+    requestAnimationFrame(frame);
   }
 
   // input: swipe / two-finger scroll to turn; tap a plate or "enter" cue to open the room

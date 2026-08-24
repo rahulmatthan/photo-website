@@ -18,13 +18,16 @@ body.strip .book{display:block;}
 .book.gone{opacity:0;pointer-events:none;}
 .book-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;perspective:2600px;}
 .spread{position:relative;height:min(80vh,56vw);aspect-ratio:3/2;transform-style:preserve-3d;}
-/* a cream leaf: image area on top, a reserved caption band at the bottom (flex column,
-   so the image is always sized to sit above the text with a margin — never overlapping) */
-.sheet,.leaf-face{position:absolute;inset:0;overflow:hidden;border-radius:3px;-webkit-font-smoothing:antialiased;
-  display:flex;flex-direction:column;
-  background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);box-shadow:0 30px 70px rgba(0,0,0,.55);}
-/* subtle laid-paper texture so the leaf feels organic, not flat */
-.sheet::before,.leaf-face::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:overlay;opacity:.72;
+/* a cream leaf: image area on top, a reserved caption band at the bottom (flex column, so the
+   image always sits above the text). Shared by the flat page (.sheet) and the full-page copies
+   cloned into the bending strips (.clone). */
+.sheet,.clone{overflow:hidden;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#f4ecda 0%,#e9dfc8 100%);}
+.sheet{position:absolute;inset:0;border-radius:3px;box-shadow:0 30px 70px rgba(0,0,0,.55);}
+.clone{position:absolute;top:0;left:0;height:100%;width:var(--bw,0px);
+  transform:translateX(calc(-1 * var(--i,0) * var(--bw,0px) / var(--n,14)));}
+/* subtle laid-paper texture so the leaf feels organic, not flat (on the resting page only) */
+.sheet::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:overlay;opacity:.72;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size:180px 180px;}
 /* letterhead — printed top-right like a fine catalogue */
@@ -41,39 +44,20 @@ body.strip .book{display:block;}
   color:#6c583c;cursor:pointer;opacity:.85;transition:opacity .4s ease;}
 .cap .enter:hover{opacity:1;}
 .cap .enter::after{content:"  \2192";}
-/* a LIVE peeling corner: the bottom-right lifts ahead of the rest as the page turns, with a
-   shadow cast beneath it. Hidden (scale 0) at rest; grows only during a flip, early on the way
-   out (forward) and late on the way in (backward), so it always leads the turn. */
-.peel{position:absolute;right:0;bottom:0;z-index:4;pointer-events:none;transform:scale(0);transform-origin:100% 100%;
-  width:clamp(66px,8.5vw,132px);height:clamp(66px,8.5vw,132px);border-bottom-right-radius:4px;
-  clip-path:polygon(100% 0,100% 100%,0 100%);
-  background:linear-gradient(135deg,rgba(0,0,0,0) 36%,rgba(60,45,22,.66) 45%,#efe6d0 53%,#fdf8ec 66%,#e6dbc0 100%);
-  box-shadow:-13px -13px 26px -6px rgba(0,0,0,.5);}
-.leaf.fwd .peel{animation:peelFwd var(--flip,1200ms) ease-in-out forwards;}
-.leaf.bwd .peel{animation:peelBwd var(--flip,1200ms) ease-in-out forwards;}
-/* the whole page turns around the spine edge (image turns both ways); a slight axis tilt lets the
-   bottom-right corner lead. backface-visibility hides the leaf past 90° to reveal the next beneath. */
-.leaf{position:absolute;inset:0;z-index:8;transform-style:preserve-3d;pointer-events:none;transform-origin:0 50%;will-change:transform;}
+/* ---- turning leaf: a chain of nested strips whose rotations sweep an arc, so the paper BENDS
+   like real paper instead of pivoting like a flat door. Each strip clips a vertical slice of a
+   full-page .clone, so the actual HTML (crisp photo + script text) is what bends. --tt = overall
+   swing, --td = per-strip bend, --a1/--a2 = per-strip shading — all set per frame in JS.
+   Curl technique adapted from Meng To's ThreeUI sketchbook (github.com/MengTo/threeui, MIT). ---- */
+.leaf{position:absolute;inset:0;z-index:8;pointer-events:none;transform-style:preserve-3d;transform-origin:0 50%;
+  transform:rotateY(calc(-1 * var(--tt,0deg)));will-change:transform;}
 .leaf.hidden{display:none;}
-.leaf.fwd{animation:pageFwd var(--flip,1200ms) cubic-bezier(.37,.06,.23,1) forwards;}
-.leaf.bwd{animation:pageBwd var(--flip,1200ms) cubic-bezier(.37,.06,.23,1) forwards;}
-.leaf-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
-.leaf-face::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;border-radius:3px;
-  background:radial-gradient(64% 64% at 100% 100%, rgba(16,10,2,.42) 0%, rgba(16,10,2,.15) 34%, rgba(16,10,2,0) 62%);}
-.leaf.fwd .leaf-face::after{animation:shadeFwd var(--flip,1200ms) ease-in-out forwards;}
-.leaf.bwd .leaf-face::after{animation:shadeBwd var(--flip,1200ms) ease-in-out forwards;}
-@keyframes pageFwd{
-  0%{transform:rotate3d(.13,1,0,0deg) translateZ(0)}
-  50%{transform:rotate3d(.13,1,0,-90deg) translateZ(26px)}
-  100%{transform:rotate3d(.13,1,0,-180deg)}}
-@keyframes pageBwd{
-  0%{transform:rotate3d(.13,1,0,-180deg)}
-  50%{transform:rotate3d(.13,1,0,-90deg) translateZ(26px)}
-  100%{transform:rotate3d(.13,1,0,0deg) translateZ(0)}}
-@keyframes peelFwd{0%{transform:scale(0)}26%{transform:scale(1)}52%{transform:scale(0)}100%{transform:scale(0)}}
-@keyframes peelBwd{0%{transform:scale(0)}48%{transform:scale(0)}74%{transform:scale(1)}100%{transform:scale(0)}}
-@keyframes shadeFwd{0%{opacity:0}26%{opacity:1}54%{opacity:0}100%{opacity:0}}
-@keyframes shadeBwd{0%{opacity:0}48%{opacity:0}74%{opacity:1}100%{opacity:0}}
+.leaf .strip{position:absolute;top:0;height:100%;width:calc(var(--bw,0px) / var(--n,14));transform-style:preserve-3d;transform-origin:left center;}
+.leaf > .strip{left:0;}
+.leaf .strip .strip{left:100%;transform:rotateY(var(--td,0deg));}
+.leaf .face{position:absolute;top:0;bottom:0;left:0;right:-1px;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.leaf .sh{position:absolute;inset:0;z-index:5;pointer-events:none;
+  background:linear-gradient(90deg,rgba(50,36,16,var(--a1,0)),rgba(50,36,16,var(--a2,0)));}
 
 .strip-hint{position:absolute;left:0;right:0;bottom:3.6vh;text-align:center;z-index:20;pointer-events:none;
   font-family:var(--sans);font-size:.58rem;letter-spacing:.28em;text-transform:uppercase;color:#6e6353;
