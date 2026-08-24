@@ -7,7 +7,7 @@
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
-  const indexView=$('indexView'), ixScroll=$('ixScroll'), ixCount=$('ixCount');
+  const indexView=$('indexView'), ixScroll=$('ixScroll'), ixCluster=$('ixCluster'), ixMenu=$('ixMenu');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -49,58 +49,79 @@
 
   // ================= INDEX (overview) =================
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  let entering=false, ixRaf=0;
-  function heroImg(rm){ const h=heroOf(rm); return h.card||h.src; }
+  let entering=false, ixRaf=0, activeIdx=0, clusterIdx=-1, lastTrans=0;
+  // one artistic collage arrangement, reused for every place (hero biggest/centre, rest scattered)
+  const SLOTS=[
+    {x:53,y:47,w:19,r:-2.5},{x:24,y:26,w:12.5,r:4},{x:79,y:24,w:13,r:-5},{x:19,y:67,w:12,r:-3.5},
+    {x:82,y:63,w:11,r:5.5},{x:47,y:83,w:10.5,r:2.5},{x:36,y:13,w:9,r:-7},{x:68,y:87,w:9.5,r:6.5}
+  ];
+  function clusterSrcs(rm){ return rm.photos.slice(0,SLOTS.length).map(p=>p.card||p.src); }
   function buildIndex(){
     const N=rooms.length, tot=String(N).padStart(2,'0');
     ixScroll.innerHTML = rooms.map((rm,i)=>
-      '<a class="ix-item" data-i="'+i+'">'
-      +'<figure class="ix-fig"><img src="'+heroImg(rm)+'" alt="'+esc(rm.title)+'"></figure>'
-      +'<div class="ix-caption"><span class="ix-num">'+String(i+1).padStart(2,'0')+' / '+tot+'</span>'
+      '<a class="ix-item" data-i="'+i+'"><span class="ix-num">'+String(i+1).padStart(2,'0')+' / '+tot+'</span>'
       +'<span class="ix-loc">'+esc(rm.title)+'</span>'
-      +'<span class="ix-sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span></div></a>'
+      +'<span class="ix-sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span></a>'
     ).join('');
-    ixCount.textContent = tot+' places';
+    ixMenu.innerHTML = rooms.map((rm,i)=>'<a data-i="'+i+'">'+esc(rm.title)+'</a>').join('');
     rooms.forEach(rm=>preloadSrc(heroOf(rm).src));
-    const io=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting) en.target.classList.add('in'); }),{threshold:.18});
-    [...ixScroll.children].forEach(el=>io.observe(el));
-    ixScroll.addEventListener('scroll', ()=>{ if(!ixRaf) ixRaf=requestAnimationFrame(()=>{ ixRaf=0; parallax(); }); }, {passive:true});
-    parallax();
+    setTimeout(()=>rooms.forEach(rm=>clusterSrcs(rm).forEach(preloadSrc)), 600);   // warm every cluster for smooth reforms
+    [...ixScroll.children].forEach(el=>el.addEventListener('click',()=>choosePlace(+el.dataset.i)));
+    [...ixMenu.children].forEach(el=>el.addEventListener('click',()=>scrollToPlace(+el.dataset.i)));
+    ixScroll.addEventListener('scroll', ()=>{ if(!ixRaf) ixRaf=requestAnimationFrame(()=>{ ixRaf=0; onFrame(); }); }, {passive:true});
+    setCluster(0,false); activeIdx=0; markActive(); onFrame();
   }
-  // subtle parallax: the print and the name drift at slightly different rates as they pass centre
-  function parallax(){
+  // as names scroll, the one nearest centre is "active" — and the cluster explode/reforms to it
+  function onFrame(){
     if(entering) return;
-    const vh=innerHeight, cy=vh/2, kids=ixScroll.children;
-    for(let k=0;k<kids.length;k++){
-      const el=kids[k], r=el.getBoundingClientRect();
-      if(r.bottom<-vh*0.6 || r.top>vh*1.6) continue;
-      const d=(r.top+r.height/2-cy)/vh;                       // -1..1 across the viewport
-      const img=el.querySelector('img');   if(img) img.style.transform='translateY('+(d*8).toFixed(2)+'%) scale(1.12)';
-      const cap=el.querySelector('.ix-caption'); if(cap) cap.style.transform='translateY(calc(-50% + '+(d*-2.4).toFixed(2)+'vh))';
+    const cy=innerHeight*0.5, kids=ixScroll.children; let best=0,bd=1e9;
+    for(let i=0;i<kids.length;i++){ const r=kids[i].getBoundingClientRect(); const dd=Math.abs(r.top+r.height/2-cy); if(dd<bd){bd=dd;best=i;} }
+    if(best!==activeIdx){ activeIdx=best; markActive(); maybeTransition(best); }
+  }
+  function markActive(){
+    [...ixScroll.children].forEach((el,i)=>el.classList.toggle('active', i===activeIdx));
+    [...ixMenu.children].forEach((el,i)=>el.classList.toggle('on', i===activeIdx));
+  }
+  function scrollToPlace(i){ const el=ixScroll.children[i]; if(el) ixScroll.scrollTo({top:el.offsetTop,behavior:'smooth'}); }
+
+  function homeTf(sl){ return 'translate(-50%,-50%) rotate('+sl.r+'deg) scale(1)'; }
+  function boomTf(sl,scale,push){ const dx=((sl.x-50)/50)*push, dy=((sl.y-50)/50)*(push*0.82);
+    return 'translate(-50%,-50%) translate('+dx.toFixed(1)+'vw,'+dy.toFixed(1)+'vh) rotate('+(sl.r*2.6).toFixed(1)+'deg) scale('+scale+')'; }
+  function makeThumb(src,sl){ const t=document.createElement('div'); t.className='ix-thumb';
+    t.style.setProperty('--x',sl.x+'%'); t.style.setProperty('--y',sl.y+'%'); t.style.setProperty('--w',sl.w+'vw'); t.style.setProperty('--r',sl.r+'deg');
+    t.innerHTML='<img src="'+src+'" alt="">'; t.__sl=sl; return t; }
+  // rebuild the cluster for place i. animate: old thumbs explode outward, new thumbs reform inward.
+  function setCluster(i,animate){
+    const srcs=clusterSrcs(rooms[i]), old=[...ixCluster.children];
+    srcs.forEach(preloadSrc);
+    const news=srcs.map((s,k)=>makeThumb(s,SLOTS[k]));
+    news.forEach((t,k)=>{ if(animate){ t.style.transition='none'; t.style.opacity='0'; t.style.transform=boomTf(SLOTS[k],0.15,34); } ixCluster.appendChild(t); });
+    if(animate){
+      old.forEach(t=>{ t.style.transition='transform .72s cubic-bezier(.5,0,.5,1),opacity .6s ease'; t.style.transform=boomTf(t.__sl,0.15,34); t.style.opacity='0'; setTimeout(()=>t.remove(),740); });
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ news.forEach((t,k)=>{ t.style.transition='transform 1s cubic-bezier(.16,.7,.2,1),opacity .8s ease'; t.style.transform=homeTf(SLOTS[k]); t.style.opacity='1'; }); }));
+    } else {
+      old.forEach(t=>t.remove());
+      news.forEach((t,k)=>{ t.style.transform=homeTf(SLOTS[k]); t.style.opacity='1'; });
     }
+    clusterIdx=i;
   }
-  // choose a place → the print zooms and the index dissolves into the dark room
-  function choosePlace(a){
+  function maybeTransition(i){
+    if(i===clusterIdx) return;
+    const now=performance.now(), animate=(now-lastTrans>260); lastTrans=now;   // snap through fast scroll, animate once it settles
+    setCluster(i,animate);
+  }
+  // choose a place → the cluster zooms toward the viewer and the index dissolves into the room
+  function choosePlace(i){
     if(mode!=='strip'||entering) return;
-    const img=a.querySelector('.ix-fig img');
-    if(img){ img.style.transition='transform 1.25s cubic-bezier(.5,0,.2,1),filter 1.25s ease';
-      img.style.transform='translateY(0) scale(1.4)'; img.style.filter='brightness(.66)'; }
-    a.classList.add('leaving');
+    [...ixCluster.children].forEach(t=>{ t.style.transition='transform 1.15s cubic-bezier(.5,0,.3,1),opacity 1.1s ease'; t.style.transform=boomTf(t.__sl,1.9,26); t.style.opacity='0'; });
     goFullscreen();
-    enterRoom(+a.dataset.i);
+    enterRoom(i);
   }
-  ixScroll.addEventListener('click', e=>{ const a=e.target.closest('.ix-item'); if(a) choosePlace(a); });
   function resetIndex(scrollToI){
-    [...ixScroll.children].forEach(el=>{ el.classList.remove('leaving');
-      const im=el.querySelector('img'); if(im){ im.style.transition=''; im.style.transform='scale(1.12)'; im.style.filter=''; } });
-    if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el) ixScroll.scrollTop=el.offsetTop; }
-    parallax();
+    if(scrollToI!=null){ const el=ixScroll.children[scrollToI]; if(el){ ixScroll.scrollTop=el.offsetTop; activeIdx=scrollToI; } }
+    markActive(); setCluster(activeIdx,false);
   }
-  function chooseCentred(){
-    const cy=innerHeight/2; let best=null,bd=1e9;
-    [...ixScroll.children].forEach(el=>{ const r=el.getBoundingClientRect(); const c=Math.abs(r.top+r.height/2-cy); if(c<bd){bd=c;best=el;} });
-    if(best) choosePlace(best);
-  }
+  function chooseCentred(){ choosePlace(activeIdx); }
 
   // ================= SPOTLIGHT ROOM =================
   let currentRoom=null, roomIdx=0, roomFrom=0, phase='rise', t0=0, sitting=false, roomPending=1, pendingExit=false, roomRunning=false;
@@ -213,7 +234,7 @@
   ['mousemove','pointerdown','wheel','keydown','touchstart'].forEach(ev=>addEventListener(ev,wake,{passive:true}));
   wake();
 
-  addEventListener('resize', () => { setMax(); if(mode==='strip') parallax(); });
+  addEventListener('resize', () => { setMax(); if(mode==='strip') onFrame(); });
   setMax();
 
   // land straight on the index

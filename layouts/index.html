@@ -44,15 +44,13 @@
 {{ end }}
 {{ $rooms = shuffle $rooms }}
 
-<!-- INDEX (overview): a dark, continuously-scrolling editorial index of places -->
+<!-- INDEX (overview): a dark editorial index — names scroll, an image cluster explodes/reforms per place -->
 <div class="indexView" id="indexView">
-  <div class="ix-mast">
-    <div class="ix-brand">
-      <span class="ix-name">Rahul Matthan</span>
-      <span class="ix-tag">Wildlife photographs</span>
-    </div>
-    <div class="ix-count" id="ixCount"></div>
-  </div>
+  <header class="ix-topband">
+    <div class="ix-logo"><span class="ix-name">Rahul Matthan</span><span class="ix-tag">Wildlife Photographs</span></div>
+    <nav class="ix-menu" id="ixMenu"></nav>
+  </header>
+  <div class="ix-cluster" id="ixCluster"></div>
   <div class="ix-scroll" id="ixScroll"></div>
   <div class="ix-hint" id="ixHint">scroll — select a place to sit with it</div>
 </div>
