@@ -14,7 +14,7 @@ body.room .stage{display:block;}
 /* ---- the book (default overview): a full-screen portfolio you leaf through ---- */
 .book{position:fixed;inset:0;overflow:hidden;display:none;opacity:1;transition:opacity 1.3s ease;
   background:radial-gradient(130% 110% at 50% 26%, #191309 0%, var(--wall-2) 72%);}
-body.strip .book{display:block;}
+body.strip .book,body.sealed .book{display:block;}
 .book.gone{opacity:0;pointer-events:none;}
 .book-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;perspective:2600px;}
 .spread{position:relative;height:min(80vh,56vw);aspect-ratio:3/2;transform-style:preserve-3d;}
@@ -58,6 +58,34 @@ body.strip .book{display:block;}
 .leaf .face{position:absolute;top:0;bottom:0;left:0;right:-1px;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;}
 .leaf .sh{position:absolute;inset:0;z-index:5;pointer-events:none;
   background:linear-gradient(90deg,rgba(50,36,16,var(--a1,0)),rgba(50,36,16,var(--a2,0)));}
+
+/* ---- the leather folio cover: the site opens closed, then the cover swings open on its spine ---- */
+.cover{position:absolute;inset:0;z-index:20;display:none;cursor:pointer;transform-origin:left center;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:3px 6px 6px 3px;
+  transition:transform 1.7s cubic-bezier(.66,0,.2,1);
+  box-shadow:0 34px 80px rgba(0,0,0,.62),0 2px 3px rgba(0,0,0,.5);
+  background:linear-gradient(90deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,.14) 5.5%,rgba(0,0,0,0) 13%),
+    radial-gradient(135% 150% at 32% 22%,#6a4234 0%,#4a2a20 42%,#311912 100%);}
+body.sealed .cover{display:block;}
+.cover.open{transform:rotateY(-168deg);pointer-events:none;}
+.cover.gone{display:none;}
+/* pebbled leather grain */
+.cover::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;mix-blend-mode:overlay;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23l)'/%3E%3C/svg%3E");
+  background-size:130px 130px;}
+/* tooled gold border */
+.cover::after{content:"";position:absolute;inset:5.5% 6%;border-radius:2px;pointer-events:none;
+  border:1px solid rgba(201,164,88,.55);
+  box-shadow:inset 0 0 0 4px rgba(201,164,88,.12),inset 0 0 24px rgba(0,0,0,.45),0 0 0 1px rgba(0,0,0,.35);}
+.cover-logo{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+.cover-logo .n{font-family:var(--display);font-size:clamp(2rem,4.6vw,3.4rem);line-height:1;color:#d8b463;
+  text-shadow:0 1px 1px rgba(0,0,0,.65),0 -1px 0 rgba(255,226,162,.18),0 0 26px rgba(201,164,88,.22);}
+.cover-logo .s{margin-top:1.05rem;font-family:var(--sans);font-size:.62rem;letter-spacing:.5em;text-transform:uppercase;
+  color:#bda06a;text-shadow:0 1px 1px rgba(0,0,0,.55);}
+.cover-hint{position:absolute;left:0;right:0;bottom:7%;z-index:2;text-align:center;pointer-events:none;
+  font-family:var(--sans);font-size:.55rem;letter-spacing:.34em;text-transform:uppercase;color:rgba(201,164,88,.65);
+  opacity:0;animation:coverHint 2.6s ease 1.3s forwards;}
+@keyframes coverHint{to{opacity:.8}}
 
 .strip-hint{position:absolute;left:0;right:0;bottom:3.6vh;text-align:center;z-index:20;pointer-events:none;
   font-family:var(--sans);font-size:.58rem;letter-spacing:.28em;text-transform:uppercase;color:#6e6353;

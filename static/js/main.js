@@ -7,7 +7,7 @@
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
-        reveal=$('reveal'), entry=$('entry'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
+        reveal=$('reveal'), cover=$('cover'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
   const book=$('book'), spread=$('spread'), sheet=$('sheet'), leaf=$('leaf');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
@@ -231,18 +231,27 @@
       if(rq && !document.fullscreenElement && !document.webkitFullscreenElement){ const r=rq.call(el); if(r&&r.catch) r.catch(()=>{}); } }catch(e){}
   }
   let started=false, autoEnter=null;
-  function startGallery(){
-    if(started) return; started=true; clearTimeout(autoEnter);
-    entry.classList.add('gone');
-    setMode('strip'); showSpread(0);
+  const readyAt = performance.now() + (reduce?0:350);      // ignore any stray pointer event at load
+  // The site opens closed on the leather folio; the first gesture swings the cover
+  // open on its spine, revealing the catalogue behind it.
+  function openFolio(){
+    if(started || performance.now() < readyAt) return;
+    started=true; clearTimeout(autoEnter);
+    cover.classList.add('open');
+    let done=false;
+    const finish=()=>{ if(done) return; done=true;
+      cover.removeEventListener('transitionend',finish);
+      document.body.classList.remove('sealed'); cover.classList.add('gone'); setMode('strip'); };
+    cover.addEventListener('transitionend',finish);
+    setTimeout(finish, reduce?800:2000);                     // safety past the open transition
   }
   addEventListener('pointerdown', e => {
+    if(!started){ if(e.target && e.target.closest && e.target.closest('#back')) return; goFullscreen(); openFolio(); return; }
     if(e.target && e.target.closest && (e.target.closest('#back') || e.target.closest('#spread'))) return;
-    if(!started){ goFullscreen(); startGallery(); return; }   // fullscreen on the entry gesture
     if(mode==='room' && phase==='hold'){ setSit(!sitting); }
   });
   addEventListener('keydown', e => {
-    if(!started){ goFullscreen(); startGallery(); return; }
+    if(!started){ goFullscreen(); openFolio(); return; }
     if(mode==='strip'){
       if(e.key==='ArrowRight'){ turn(1); }
       else if(e.key==='ArrowLeft'){ turn(-1); }
@@ -263,5 +272,7 @@
   addEventListener('resize', setMax);
   setMax();
 
-  autoEnter = setTimeout(startGallery, reduce?2000:5000);
+  // open sealed: the first page is rendered behind the closed leather cover
+  setMode('entry'); document.body.classList.add('sealed'); showSpread(0);
+  autoEnter = setTimeout(openFolio, reduce?3000:7000);
 })();
