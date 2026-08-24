@@ -36,11 +36,16 @@ body.strip .indexView{display:block;}
    It explodes/reforms driven by scroll, so the transform is set per-frame in JS. */
 .ix-cluster{position:absolute;top:50%;transform:translateY(-50%);right:clamp(2rem,4vw,3.6rem);width:min(43vw,660px);z-index:2;pointer-events:none;
   columns:3;column-gap:clamp(8px,.85vw,15px);}
-.ix-thumb{width:100%;margin:0 0 clamp(8px,.85vw,15px);break-inside:avoid;will-change:transform,opacity;}
+.ix-thumb{width:100%;margin:0 0 clamp(8px,.85vw,15px);break-inside:avoid;}
 .ix-thumb img{width:100%;height:auto;display:block;box-shadow:0 14px 36px rgba(0,0,0,.5);filter:brightness(.92);}
+.ix-cluster{will-change:opacity;}
+/* the particle field — a full-viewport canvas over the grid zone. At rest it's empty
+   (the sharp DOM masonry shows); on scroll the grid dissolves into it and the next
+   place's grid coalesces back out. Transform set per-frame in JS. */
+.ix-canvas{position:absolute;inset:0;z-index:2;pointer-events:none;}
 /* the scrolling names (left), masked so they dissolve into the top band and the floor */
 .ix-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;z-index:3;
-  scroll-snap-type:y mandatory;
+  /* scroll snap is handled in JS (main.js), together with wheel/trackpad damping */
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);
           mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);}
 .ix-scroll::-webkit-scrollbar{width:0;height:0;}
