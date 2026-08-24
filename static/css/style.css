@@ -32,17 +32,19 @@ body.strip .indexView{display:block;}
 .ix-menu a{font-family:var(--mono);font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);
   text-decoration:none;cursor:pointer;transition:color .4s ease;white-space:nowrap;}
 .ix-menu a:hover,.ix-menu a.on{color:var(--ink2);}
-/* the fixed image cluster (right) that explodes + reforms between places */
-.ix-cluster{position:absolute;top:0;bottom:0;right:0;width:52vw;z-index:2;pointer-events:none;}
-.ix-thumb{position:absolute;left:var(--x);top:var(--y);width:var(--w);aspect-ratio:3/2;
-  transform:translate(-50%,-50%) rotate(var(--r)) scale(1);will-change:transform,opacity;}
-.ix-thumb img{width:100%;height:100%;object-fit:cover;display:block;box-shadow:0 22px 55px rgba(0,0,0,.6);filter:brightness(.9);}
+/* the image grid (right) — a masonry aligned to its top + left, aspect retained (ragged bottom is fine).
+   It explodes/reforms driven by scroll, so the transform is set per-frame in JS. */
+.ix-cluster{position:absolute;top:clamp(80px,12.5vh,124px);right:clamp(2rem,4vw,3.6rem);width:min(43vw,660px);z-index:2;pointer-events:none;
+  columns:3;column-gap:clamp(8px,.85vw,15px);}
+.ix-thumb{width:100%;margin:0 0 clamp(8px,.85vw,15px);break-inside:avoid;will-change:transform,opacity;}
+.ix-thumb img{width:100%;height:auto;display:block;box-shadow:0 14px 36px rgba(0,0,0,.5);filter:brightness(.92);}
 /* the scrolling names (left), masked so they dissolve into the top band and the floor */
 .ix-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;z-index:3;
+  scroll-snap-type:y proximity;
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);
           mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 8%,#000 19%,#000 88%,transparent 100%);}
 .ix-scroll::-webkit-scrollbar{width:0;height:0;}
-.ix-item{position:relative;display:flex;flex-direction:column;justify-content:center;height:88vh;
+.ix-item{position:relative;display:flex;flex-direction:column;justify-content:center;height:88vh;scroll-snap-align:center;
   padding-left:clamp(1.8rem,6vw,5rem);text-decoration:none;color:inherit;cursor:pointer;max-width:47vw;}
 .ix-num{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted2);margin-bottom:1.1rem;transition:color .5s ease;}
 .ix-loc{display:block;font-family:var(--didone);font-size:clamp(2.6rem,7.4vw,6.4rem);line-height:.96;letter-spacing:-.012em;color:var(--ink2);transition:color .6s ease;}
