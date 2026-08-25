@@ -54,6 +54,22 @@
   <div class="ix-cluster" id="ixCluster"></div>
   <canvas class="ix-canvas" id="ixCanvas"></canvas>
   <div class="ix-scroll" id="ixScroll"></div>
+
+  <!-- HERO (opening): a striking black-panther portrait; the name rises out of the dark, then the whole
+       thing dissolves in the cloudburst into the collection. Inside indexView so the particle canvas can
+       lift above it during the dissolve. Skipped when a shared #location link is used. -->
+  {{ with (resources.GetMatch "images/kabini/Blackie*") }}{{ $hero := .Fit "2560x2560 webp q80" }}
+  <div class="hero" id="hero">
+    <img class="hero-img" id="heroImg" src="{{ $hero.RelPermalink }}" alt="A black panther in the dark, Kabini">
+    <div class="hero-veil"></div>
+    <canvas class="hero-cv" id="heroCv"></canvas>
+    <div class="hero-text">
+      <span class="hero-name">Rahul Matthan</span>
+      <span class="hero-sub">Wildlife Photography</span>
+    </div>
+    <div class="hero-hint">scroll to enter</div>
+  </div>
+  {{ end }}
   <div class="ix-hint" id="ixHint">scroll — select a place to sit with it</div>
 </div>
 

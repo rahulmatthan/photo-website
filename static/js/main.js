@@ -8,6 +8,7 @@
   const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
         reveal=$('reveal'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
   const indexView=$('indexView'), ixScroll=$('ixScroll'), ixCluster=$('ixCluster'), ixMenu=$('ixMenu');
+  const hero=$('hero'), heroImg=$('heroImg'), heroCv=$('heroCv'), hcx = heroCv && heroCv.getContext('2d');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
   const pcv=$('ixCanvas'), pcx = pcv && pcv.getContext('2d');
@@ -96,48 +97,57 @@
     }
     if(!drew){ P=null; return; }
     let data; try{ data=sxx.getImageData(0,0,W,H).data; }catch(e){ P=null; return; }
-    // collect this grid's opaque cells (the colour + shape source, used only for the reformed grid)
+    buildParticlesFrom(data, ox, oy, W, H);
+  }
+  // The hero (opening) image sampled into the SAME cloud — so the panther dissolves in the identical
+  // starfield that then reforms into the first grid. Homes span the whole screen (cover-fit).
+  function sampleHero(){
+    if(!pcx || !heroImg || !heroImg.complete || !heroImg.naturalWidth) return;
+    const W=innerWidth, H=innerHeight;
+    scv.width=W; scv.height=H; sxx.clearRect(0,0,W,H);
+    const iw=heroImg.naturalWidth, ih=heroImg.naturalHeight, s=Math.max(W/iw,H/ih), dw=iw*s, dh=ih*s;
+    sxx.drawImage(heroImg,(W-dw)/2,(H-dh)*0.14,dw,dh);       // cover, framed (matches CSS object-position 50% 14%)
+    let data; try{ data=sxx.getImageData(0,0,W,H).data; }catch(e){ return; }
+    buildParticlesFrom(data, 0, 0, W, H);
+  }
+  // Build the particle set from a source bitmap: opaque cells give the reform colour+shape (homes at
+  // sox+cell), while the CLOUD is FIXED (same size/shape/density for the hero AND every grid — a Gaussian
+  // scatter centred on the stable grid centre, dense core + sparse screen-filling halo).
+  function buildParticlesFrom(data, sox, soy, W, H){
     const cstep=4, ch=cstep>>1, clx=[], cly=[], cr=[], cg=[], cbl=[];
     for(let y=0;y<H;y+=cstep){ for(let x=0;x<W;x+=cstep){
       const sx=Math.min(W-1,x+ch), sy=Math.min(H-1,y+ch), idx=(sy*W+sx)*4;
-      if(data[idx+3]<40) continue;                           // skip the masonry gaps only
+      if(data[idx+3]<40) continue;                           // skip transparent gaps only
       clx.push(x+ch); cly.push(y+ch); cr.push(data[idx]&0xF8); cg.push(data[idx+1]&0xF8); cbl.push(data[idx+2]&0xF8);
     }}
     const M=clx.length; if(!M){ P=null; return; }
-    // The CLOUD is FIXED — same size, shape and density for EVERY grid: a fixed count of particles at a
-    // Gaussian scatter of viewport-scaled radius, centred on the (stable) grid centre (dense in the
-    // middle, thinning outward). Grid dimensions never touch it. Only the grid HOMES + colours below
-    // come from this particular grid, so its shape only emerges as the particles coalesce back in.
-    const n=Math.max(5000, Math.min(13000, Math.round(innerWidth*innerHeight/125)));   // denser still
-    const gx=ox+W/2, gy=oy+H/2, gw=Math.min(innerWidth*0.43,660);
-    const coreX=gw*0.34, coreY=innerHeight*0.22;              // dense core (the image zone)
-    const haloX=innerWidth*0.52, haloY=innerHeight*0.46;      // a sparse halo spreading over the whole screen
-    const refX=innerWidth*0.30, refY=innerHeight*0.32;        // brightness falloff by REAL distance (centre bright → edges faint)
+    const n=Math.max(5000, Math.min(13000, Math.round(innerWidth*innerHeight/125)));
+    const cb=ixCluster.getBoundingClientRect();              // cloud centre = the (stable) grid centre — shared by hero + grids
+    const gx=cb.left+cb.width/2, gy=cb.top+cb.height/2, gw=Math.min(innerWidth*0.43,660);
+    const coreX=gw*0.34, coreY=innerHeight*0.22, haloX=innerWidth*0.52, haloY=innerHeight*0.46, refX=innerWidth*0.30, refY=innerHeight*0.32;
     const parts=new Array(n);
     for(let i=0;i<n;i++){
       const m=(fr(i*1.37+0.7)*M)|0, r=cr[m], g=cg[m], b=cbl[m];
       const u1=Math.max(1e-4, fr(i*12.9898)), u2=fr(i*0.723+7.13);
-      const mag=Math.sqrt(-2*Math.log(u1)), aa=6.2832*u2;    // Box–Muller → normal (dense core, thin tails)
+      const mag=Math.sqrt(-2*Math.log(u1)), aa=6.2832*u2;
       let g1=mag*Math.cos(aa), g2=mag*Math.sin(aa);
       if(g1>3.2)g1=3.2; else if(g1<-3.2)g1=-3.2;
       if(g2>3.2)g2=3.2; else if(g2<-3.2)g2=-3.2;
-      const halo=fr(i*5.11+2.9)>0.74;                         // ~26% form the wide, screen-filling halo; the rest the dense core
-      const dxp=g1*(halo?haloX:coreX), dyp=g2*(halo?haloY:coreY);
-      // size: the vast majority are tiny sharp specks; a rare ~0.2% (≈1 in 500) bloom into big soft bokeh
+      const halo=fr(i*5.11+2.9)>0.74, dxp=g1*(halo?haloX:coreX), dyp=g2*(halo?haloY:coreY);
       const big=fr(i*2.37+8.8)>0.998, rr=fr(i*3.71+5.9);
       parts[i]={
-        fx:ox+clx[m]+(fr(i*7.1+3.3)-0.5)*cstep, fy:oy+cly[m]+(fr(i*5.7+9.1)-0.5)*cstep,   // grid home
-        cx:gx+dxp, cy:gy+dyp,                                                              // fixed cloud target
-        sa:fr(i*39.42+4.1)*6.283, sb:fr(i*93.71+2.3)*6.283,                                // buzz phase
-        cf:Math.exp(-0.5*((dxp/refX)*(dxp/refX)+(dyp/refY)*(dyp/refY))),                   // centre bright → very faint over the text
-        sz: big ? (3.0+4.5*fr(i*6.13+1.1)) : (0.75+0.7*rr*rr),                             // base size (DOT units)
-        br: big ? (0.8+1.2*fr(i*9.7+2.2)) : 0.16,                                          // size-breathing amplitude (approach/recede)
-        bright: big ? (0.55+0.32*fr(i*4.4+3.3)) : (0.45+0.35*rr),                          // per-particle brightness
+        fx:sox+clx[m]+(fr(i*7.1+3.3)-0.5)*cstep, fy:soy+cly[m]+(fr(i*5.7+9.1)-0.5)*cstep,   // home (in the source image)
+        cx:gx+dxp, cy:gy+dyp,                                                                // fixed cloud target
+        sa:fr(i*39.42+4.1)*6.283, sb:fr(i*93.71+2.3)*6.283,
+        cf:Math.exp(-0.5*((dxp/refX)*(dxp/refX)+(dyp/refY)*(dyp/refY))),
+        sz: big ? (3.0+4.5*fr(i*6.13+1.1)) : (0.75+0.7*rr*rr),
+        br: big ? (0.8+1.2*fr(i*9.7+2.2)) : 0.16,
+        bright: big ? (0.55+0.32*fr(i*4.4+3.3)) : (0.45+0.35*rr),
         zp:fr(i*8.17+0.5)*6.283,
         col:'rgb('+r+','+g+','+b+')', key:(r<<16|g<<8|b)
       };
     }
-    parts.sort((p,q)=>p.key-q.key);                          // group by colour → the sharp reform layer rarely re-sets fillStyle
+    parts.sort((p,q)=>p.key-q.key);
     P={n, gx, gy, fx:new Float32Array(n), fy:new Float32Array(n), cx:new Float32Array(n), cy:new Float32Array(n),
        sa:new Float32Array(n), sb:new Float32Array(n), cf:new Float32Array(n),
        sz:new Float32Array(n), br:new Float32Array(n), bright:new Float32Array(n), zp:new Float32Array(n),
@@ -234,7 +244,7 @@
   }
   function closeMenus(){ ixMenu.querySelectorAll('.ix-mgroup.open').forEach(g=>g.classList.remove('open')); }
   function locFromHash(){ const h=decodeURIComponent(location.hash.replace(/^#/,'')); return rooms.findIndex(r=>r.key===h); }
-  function syncHash(){ const k=rooms[activeIdx]&&rooms[activeIdx].key; if(k && location.hash.slice(1)!==k) history.replaceState(null,'','#'+k); }
+  function syncHash(){ if(heroUp) return; const k=rooms[activeIdx]&&rooms[activeIdx].key; if(k && location.hash.slice(1)!==k) history.replaceState(null,'','#'+k); }
   function hitTile(e){
     const t=ixCluster.children;
     for(let i=0;i<t.length;i++){ const r=t[i].getBoundingClientRect();
@@ -254,7 +264,100 @@
   // right down THROUGH the cloud (you see the particles drifting) but never fully holds, and still eases
   // gently out of / into the grids. Velocity: 0 at the ends, ~0.75 through the cloud, faster on the flanks.
   const easeB = e => { const d=e-Math.sin(12.5664*e)/12.5664, s=e*e*(3-2*e); return 0.5*d+0.5*s; };
-  let pageAnim=null, jumpAnim=null, jumpAmt=0, jumpSwapped=false, pageArmed=true, wheelStamp=0, touchY=0;
+  let pageAnim=null, jumpAnim=null, jumpAmt=0, jumpSwapped=false, heroAnim=null, heroUp=false, pageArmed=true, wheelStamp=0, touchY=0;
+  // ==== bespoke ONE-TIME hero cloudburst (never repeated) ====
+  // A slow, imperceptible dematerialisation that GATHERS momentum into a massive dense full-screen
+  // swirling storm, agitates violently, then a WIND blows it away to reveal the collection behind.
+  // Its own physics sim (velocity + a churning curl field + a final gust), distinct from the grid transition.
+  let heroBurst=null, HB=null;
+  const HB_DUR = reduce ? 3000 : 9500;
+  function sampleHeroBurst(){
+    if(!pcx || !heroImg || !heroImg.complete || !heroImg.naturalWidth) return;
+    const W=innerWidth, H=innerHeight;
+    scv.width=W; scv.height=H; sxx.clearRect(0,0,W,H);
+    const iw=heroImg.naturalWidth, ih=heroImg.naturalHeight, s=Math.max(W/iw,H/ih), dw=iw*s, dh=ih*s;
+    sxx.drawImage(heroImg,(W-dw)/2,(H-dh)*0.14,dw,dh);       // same framing as the CSS
+    let data; try{ data=sxx.getImageData(0,0,W,H).data; }catch(e){ return; }
+    const step=6, ch=step>>1, parts=[];                         // dense; particles keep the image's OWN (mostly black) colour
+    for(let y=0;y<H;y+=step){ for(let x=0;x<W;x+=step){
+      const sx=Math.min(W-1,x+ch), sy=Math.min(H-1,y+ch), idx=(sy*W+sx)*4;
+      const r=data[idx]&0xF8, g=data[idx+1]&0xF8, b=data[idx+2]&0xF8;
+      if(r+g+b<26) continue;                                    // skip pure-black → those particles are invisible anyway
+      const j=parts.length;
+      parts.push({ hx:x+ch, hy:y+ch, r, g, b, key:(r<<16|g<<8|b), ph:fr(j*1.73)*6.283,
+        sz: fr(j*3.11)>0.99 ? (2.5+2.5*fr(j*4.41)) : (1.2+1.5*fr(j*2.23)) });
+    }}
+    parts.sort((a,b)=>a.key-b.key);                             // group by colour → fillStyle rarely changes
+    const n=parts.length;
+    HB={ n, px:new Float32Array(n), py:new Float32Array(n), vx:new Float32Array(n), vy:new Float32Array(n),
+         ph:new Float32Array(n), sz:new Float32Array(n), col:new Array(n) };
+    for(let i=0;i<n;i++){ const p=parts[i]; HB.px[i]=p.hx; HB.py[i]=p.hy; HB.ph[i]=p.ph; HB.sz[i]=p.sz;
+      // lift toward visible so the buzz reads, but keep the image's tones (darks stay grey, lit bits pop); slight warm
+      const R=Math.min(255,32+p.r*1.7|0), G=Math.min(255,28+p.g*1.62|0), B=Math.min(255,22+p.b*1.42|0);
+      HB.col[i]='rgb('+R+','+G+','+B+')'; }
+  }
+  function sizeHeroCv(){
+    if(!hcx) return;
+    heroCv.width=Math.round(innerWidth*DPR); heroCv.height=Math.round(innerHeight*DPR);
+    heroCv.style.width=innerWidth+'px'; heroCv.style.height=innerHeight+'px';
+    hcx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  function dissolveHero(){
+    if(!heroUp || !hero) return;
+    heroUp=false;
+    sampleHeroBurst();
+    hero.classList.add('dissolving');                       // fade the title + hint
+    if(!HB || !hcx){ finishHeroBurst(); return; }           // image not ready → just fall through to the index
+    sizeHeroCv();
+    heroBurst={ start:performance.now(), last:0 };
+    requestAnimationFrame(heroBurstTick);
+  }
+  const hbStep = x => { x=x<0?0:(x>1?1:x); return x*x*(3-2*x); };
+  function heroBurstTick(now){
+    if(!heroBurst || !HB || !hcx){ return; }
+    if(!heroBurst.last) heroBurst.last=now-16;
+    const e=Math.min(1,(now-heroBurst.start)/HB_DUR), dt=Math.min(0.05,(now-heroBurst.last)/1000); heroBurst.last=now;
+    const turb=Math.pow(hbStep(e/0.5),1.6);                 // ~0 at first (imperceptible), then violent
+    const cx=innerWidth*0.5, cy=innerHeight*0.5, GUST=innerWidth*1.2; // a puff at the centre scatters everything out
+    const T=now*0.0021, SPD=185;                            // brownian jitter magnitude (not a coherent field)
+    const pAlpha=hbStep(e/0.22)*(1-hbStep((e-0.70)/0.30));  // fade in as it particalises, out as it blows away
+    if(heroImg) heroImg.style.opacity=(1-hbStep((e-0.05)/0.32)).toFixed(2);   // the portrait fades early + slow
+    if(hero) hero.style.opacity=(1-hbStep((e-0.60)/0.34)).toFixed(2);         // reveal the collection behind
+    hcx.clearRect(0,0,innerWidth,innerHeight);
+    hcx.globalCompositeOperation='source-over';             // keep the image's own (mostly black) tones — no glow
+    hcx.globalAlpha=pAlpha;
+    const px=HB.px, py=HB.py, vx=HB.vx, vy=HB.vy, k=Math.min(1,dt*7);
+    let last='';
+    for(let i=0;i<HB.n;i++){
+      const p=HB.ph[i];
+      // force depends only on the particle's OWN seed (p) + time — no spatial coupling, so no organised swirls.
+      // fast, high-frequency jitter (not a slow-rotating vector) so motes keep twitching erratically to the very
+      // end instead of settling into tidy circles once the crowd has thinned
+      const fx=Math.sin(p*12.9+T*6.3)+0.7*Math.sin(p*31.7+T*11.1)+0.55*Math.sin(p*61.3+T*18.7);
+      const fy=Math.cos(p*9.3+T*5.7)+0.7*Math.cos(p*27.1+T*10.3)+0.55*Math.cos(p*53.7+T*17.1);
+      // radial scatter from centre — but each mote on its own terms: staggered onset, its own speed, a wide
+      // angular kick (some fly clean outward, some career off sideways), and its own chaos on the buzz
+      const ang=Math.atan2(py[i]-cy,px[i]-cx) + 1.4*Math.sin(p*23.7) + 0.6*Math.sin(p*57.3);
+      const onset=0.52+0.14*(p*0.159154), sp=0.5+1.2*Math.sin(p*11.3)*Math.sin(p*11.3);
+      const wm=hbStep((e-onset)/0.24)*GUST*sp, chaos=0.6+1.8*Math.abs(Math.sin(p*41.7));
+      vx[i]+=((fx*SPD*turb*chaos + Math.cos(ang)*wm)-vx[i])*k; // ease toward chaotic buzz + outward gust
+      vy[i]+=((fy*SPD*turb*chaos + Math.sin(ang)*wm)-vy[i])*k;
+      px[i]+=vx[i]*dt; py[i]+=vy[i]*dt;
+      const c=HB.col[i]; if(c!==last){ hcx.fillStyle=c; last=c; }
+      const z=HB.sz[i];
+      hcx.fillRect(px[i], py[i], z, z);
+    }
+    hcx.globalAlpha=1;
+    if(e>=1){ finishHeroBurst(); return; }
+    requestAnimationFrame(heroBurstTick);
+  }
+  function finishHeroBurst(){
+    heroBurst=null; HB=null;
+    if(hcx){ hcx.globalCompositeOperation='source-over'; hcx.clearRect(0,0,innerWidth,innerHeight); }
+    if(hero){ hero.style.display='none'; hero.style.opacity=''; }
+    activeIdx=0; setCluster(0); markActive(); ixScroll.scrollTop=centerTop(0); syncHash();
+    applyCluster();                                         // hand off to the index (grid at rest, ready to scroll)
+  }
   function startPage(target){                              // adjacent step: the name scrolls one place over
     target=clampC(target);
     pageAnim={ from:ixScroll.scrollTop, to:centerTop(target), start:performance.now(), dur:PAGE_DUR };
@@ -278,6 +381,7 @@
   function onWheel(e){
     if(mode!=='strip'||entering) return;
     e.preventDefault();                                     // fully take over scrolling
+    if(heroUp){ dissolveHero(); return; }                   // first scroll leaves the opening hero
     const now=performance.now();
     if(!pageAnim && !jumpAnim && !pageArmed && now-wheelStamp>140) pageArmed=true;   // re-arm once the inertia tail goes quiet
     wheelStamp=now;
@@ -331,7 +435,7 @@
   function clearSettle(){ if(sp){ [sp.elLoc,sp.elNum,sp.elSub].forEach(el=>{ if(el) el.style.transform=''; }); sp=null; } }
   function updateIndex(){
     if(entering || mode!=='strip') return curAmt;
-    if(jumpAnim){                                                  // a jump drives amt directly (place swap handled in ixTick)
+    if(jumpAnim||heroAnim){                                        // a jump / hero-dissolve drives amt directly (swap handled in ixTick)
       curAmt=jumpAmt;
       ixCluster.style.opacity=Math.max(0,1-curAmt*5).toFixed(3);
       ixScroll.style.opacity=(1-sstep((curAmt-0.06)/0.56)).toFixed(3);
@@ -353,7 +457,17 @@
     if(entering || mode!=='strip'){ ixAnim=0; return; }
     const dt = ixLast ? Math.min(0.05,(now-ixLast)/1000) : 0.016; ixLast=now;
     let justLanded=0;
-    if(jumpAnim){                                                 // dematerialise here → swap at the peak → reform at the target
+    if(heroAnim){                                                 // opening: the panther dissolves → cloud → first grid reforms
+      const e=Math.min(1,(now-heroAnim.start)/heroAnim.dur), eb=easeB(e);
+      if(!heroAnim.swapped && eb>=0.5){                           // at the full cloud: swap the panther for the first grid
+        heroAnim.swapped=true; activeIdx=0; setCluster(0); sampleParticles(); markActive(); ixScroll.scrollTop=centerTop(0);
+        if(hero) hero.classList.add('gone'); syncHash();
+      }
+      if(!heroAnim.swapped && heroImg) heroImg.style.opacity=Math.max(0,1-eb*1.9).toFixed(2);   // the portrait fades as it particalises
+      const d=0.5-Math.abs(eb-0.5), a=Math.max(0,Math.min(1,(d-0.12)/0.36));
+      jumpAmt=a*a*(3-2*a);
+      if(e>=1){ heroAnim=null; if(hero) hero.style.display='none'; if(pcv) pcv.style.zIndex=''; justLanded=1; }
+    } else if(jumpAnim){                                          // dematerialise here → swap at the peak → reform at the target
       const e=Math.min(1,(now-jumpAnim.start)/jumpAnim.dur), eb=easeB(e);
       if(!jumpSwapped && eb>=0.5){                                // at the full cloud: swap the composite + jump the scroll (invisible)
         jumpSwapped=true; activeIdx=jumpAnim.to; setCluster(activeIdx); sampleParticles(); markActive(); ixScroll.scrollTop=centerTop(activeIdx);
@@ -370,7 +484,7 @@
     if(justLanded){ kickSettle(justLanded); syncHash(); }         // the click into place + shareable #hash
     drawParticles(amt, now);
     const springing=stepSettle(dt);
-    if(!pageAnim && !jumpAnim && !springing && amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
+    if(!pageAnim && !jumpAnim && !heroAnim && !springing && amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
     ixAnim=requestAnimationFrame(ixTick);
   }
   function applyCluster(){ ixIdle=0; if(!ixAnim && !entering && mode==='strip'){ ixLast=0; ixAnim=requestAnimationFrame(ixTick); } }
@@ -495,6 +609,7 @@
     }
   });
   addEventListener('keydown', e => {
+    if(heroUp && mode==='strip'){ if(['Tab','Shift','Control','Alt','Meta'].indexOf(e.key)<0){ e.preventDefault(); dissolveHero(); } return; }
     if(mode==='strip'){
       if(e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); goStep(1); }
       else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); goStep(-1); }
@@ -516,6 +631,13 @@
   addEventListener('resize', () => { setMax(); sizeCanvas(); if(mode==='strip'){ sampleParticles(); applyCluster(); } });
   setMax();
 
-  // land straight on the index
+  // land on the index — but open on the HERO first, unless a shared #location link was used.
+  // (decide heroUp BEFORE buildIndex, whose syncHash would otherwise stamp a hash and skip the hero)
+  heroUp = !!(hero && locFromHash()<0);
   setMode('strip'); buildIndex();
+  if(heroUp){
+    hero.addEventListener('wheel', e=>{ e.preventDefault(); dissolveHero(); }, {passive:false});
+    hero.addEventListener('click', dissolveHero);
+    hero.addEventListener('touchstart', ()=>dissolveHero(), {passive:true});
+  } else if(hero){ hero.style.display='none'; }
 })();
