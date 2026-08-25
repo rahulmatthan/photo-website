@@ -264,6 +264,11 @@
   // right down THROUGH the cloud (you see the particles drifting) but never fully holds, and still eases
   // gently out of / into the grids. Velocity: 0 at the ends, ~0.75 through the cloud, faster on the flanks.
   const easeB = e => { const d=e-Math.sin(12.5664*e)/12.5664, s=e*e*(3-2*e); return 0.5*d+0.5*s; };
+  // single-step landing curve: easeB dwell through the cloud (first half), then an ACCELERATING glide into
+  // centre (no ease-out, no ripple) so the name never slows before it arrives — the magnet spring does the
+  // stopping. Velocity is continuous at the seam (easeB'(0.5)=0.75) and keeps rising to 1.25 at e=1.
+  const landPos = e => { if(e<=0.5) return easeB(e); const t=e-0.5; return 0.5 + 0.75*t + 0.5*t*t; };
+  const landVel = e => 0.75 + (e-0.5);                         // landPos'(e) in the glide region (e>0.5)
   let pageAnim=null, jumpAnim=null, jumpAmt=0, jumpSwapped=false, heroAnim=null, heroUp=false, pageArmed=true, wheelStamp=0, touchY=0;
   // ==== bespoke ONE-TIME hero cloudburst (never repeated) ====
   // A slow, imperceptible dematerialisation that GATHERS momentum into a massive dense full-screen
@@ -422,10 +427,18 @@
     sp={ loc:{y:0,v:-dir*210}, num:{y:0,v:-dir*168}, sub:{y:0,v:-dir*150},   // heavy name overshoots most (inertia)
          elLoc:item.querySelector('.ix-loc'), elNum:item.querySelector('.ix-num'), elSub:item.querySelector('.ix-sub') };
   }
+  // continuous landing: the name is `offset` px short of centre, still closing at `vel` px/s — start the spring
+  // there so it flows past centre into a slight overshoot and rocks back (no dead-stop-then-kick).
+  function settleGlide(offset, vel){
+    const item=ixScroll.children[activeIdx]; if(!item) return;
+    const v0=-vel;                                                // carry the glide's (already high) momentum through centre
+    sp={ loc:{y:offset,v:v0*1.00}, num:{y:offset,v:v0*0.90}, sub:{y:offset,v:v0*0.84},   // heavy name carries most → overshoots most
+         elLoc:item.querySelector('.ix-loc'), elNum:item.querySelector('.ix-num'), elSub:item.querySelector('.ix-sub') };
+  }
   function stepSettle(dt){
     if(!sp) return false;
     const upd=(s,k,c)=>{ s.v += (-k*s.y - c*s.v)*dt; s.y += s.v*dt; return Math.abs(s.y)+Math.abs(s.v); };
-    const e = upd(sp.loc,290,17) + upd(sp.num,290,17) + upd(sp.sub,290,17);   // same spring for all three → they bounce in sync
+    const e = upd(sp.loc,340,26) + upd(sp.num,340,26) + upd(sp.sub,340,26);   // stiff, well-damped magnet: grabs at centre, one slight rock
     if(sp.elLoc) sp.elLoc.style.transform='translateY('+sp.loc.y.toFixed(2)+'px)';
     if(sp.elNum) sp.elNum.style.transform='translateY('+sp.num.y.toFixed(2)+'px)';
     if(sp.elSub) sp.elSub.style.transform='translateY('+sp.sub.y.toFixed(2)+'px)';
@@ -476,9 +489,17 @@
       jumpAmt=a*a*(3-2*a);
       if(e>=1){ justLanded=Math.sign(jumpAnim.to-jumpAnim.from)||1; jumpAnim=null; }
     } else if(pageAnim){                                          // adjacent step: the name scrolls one place over (Option B dwell)
-      const e=Math.min(1,(now-pageAnim.start)/pageAnim.dur);
-      ixScroll.scrollTop = pageAnim.from + (pageAnim.to-pageAnim.from)*easeB(e);
-      if(e>=1){ justLanded=Math.sign(pageAnim.to-pageAnim.from)||1; pageAnim=null; }
+      const durS=pageAnim.dur/1000, span=pageAnim.to-pageAnim.from, e=Math.min(1,(now-pageAnim.start)/pageAnim.dur);
+      if(e<0.95){
+        ixScroll.scrollTop = pageAnim.from + span*landPos(e);     // accelerating glide, no slowdown before centre
+      } else {
+        // the name arrives at centre still moving fast; hand its momentum to the magnet spring so the CENTRE
+        // is what decelerates + stops it (slight overshoot → click), never the approach
+        const cur=pageAnim.from + span*landPos(e);
+        ixScroll.scrollTop = pageAnim.to;
+        settleGlide(pageAnim.to-cur, span*landVel(e)/durS);       // remaining offset + its (high, still-rising) closing velocity
+        pageAnim=null; syncHash();
+      }
     }
     const amt=updateIndex();
     if(justLanded){ kickSettle(justLanded); syncHash(); }         // the click into place + shareable #hash
