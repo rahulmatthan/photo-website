@@ -259,7 +259,8 @@
   // Paged navigation (aircenter-style): one scroll gesture — ANY force — advances exactly one place; the
   // page tweens itself so that place lands perfectly centred, and the particle dematerialise→reform plays
   // out over that fixed tween (driven in ixTick). It can never rest between places. Native scroll is off.
-  const PAGE_DUR = reduce ? 800 : 2400;                    // transition length (ms) — slow + patient
+  const PAGE_DUR = reduce ? 700 : 1000;                    // name-scroll length (ms) — the name reaches + locks at centre
+  const REFORM_DUR = reduce ? 260 : 480;                   // cloud → new grid, AFTER the name has locked in place
   // Option B easing (softened): a 50/50 blend of a cloud-dwell curve and a plain ease-in-out. It slows
   // right down THROUGH the cloud (you see the particles drifting) but never fully holds, and still eases
   // gently out of / into the grids. Velocity: 0 at the ends, ~0.75 through the cloud, faster on the flanks.
@@ -270,6 +271,7 @@
   const landPos = e => { if(e<=0.5) return easeB(e); const t=e-0.5; return 0.5 + 0.75*t + 0.5*t*t; };
   const landVel = e => 0.75 + (e-0.5);                         // landPos'(e) in the glide region (e>0.5)
   let pageAnim=null, jumpAnim=null, jumpAmt=0, jumpSwapped=false, heroAnim=null, heroUp=false, pageArmed=true, wheelStamp=0, touchY=0;
+  let stepCloud=0, stepSwapped=false, awaitReform=false, reformAt=0, reformAnim=null;   // paged step: particles held as cloud until the name locks, then reform
   // ==== bespoke ONE-TIME hero cloudburst (never repeated) ====
   // A slow, imperceptible dematerialisation that GATHERS momentum into a massive dense full-screen
   // swirling storm, agitates violently, then a WIND blows it away to reveal the collection behind.
@@ -365,7 +367,8 @@
   }
   function startPage(target){                              // adjacent step: the name scrolls one place over
     target=clampC(target);
-    pageAnim={ from:ixScroll.scrollTop, to:centerTop(target), start:performance.now(), dur:PAGE_DUR };
+    pageAnim={ from:ixScroll.scrollTop, to:centerTop(target), toIdx:target, start:performance.now(), dur:PAGE_DUR };
+    stepSwapped=false; awaitReform=false; reformAnim=null;
     ixIdle=0; if(!ixAnim && mode==='strip' && !entering) ixAnim=requestAnimationFrame(ixTick);
   }
   // JUMP (menu / link to any place, near or far): dematerialise the CURRENT grid here, and at the cloud
@@ -437,8 +440,9 @@
   }
   function stepSettle(dt){
     if(!sp) return false;
-    const upd=(s,k,c)=>{ s.v += (-k*s.y - c*s.v)*dt; s.y += s.v*dt; return Math.abs(s.y)+Math.abs(s.v); };
-    const e = upd(sp.loc,340,26) + upd(sp.num,340,26) + upd(sp.sub,340,26);   // stiff, well-damped magnet: grabs at centre, one slight rock
+    const SUB=4, h=Math.min(0.05,dt)/SUB;                          // sub-step so the stiff spring stays stable at any frame rate
+    const upd=(s,k,c)=>{ for(let i=0;i<SUB;i++){ s.v += (-k*s.y - c*s.v)*h; s.y += s.v*h; } if(!isFinite(s.y)){ s.y=0; s.v=0; } return Math.abs(s.y)+Math.abs(s.v); };
+    const e = upd(sp.loc,620,43) + upd(sp.num,620,43) + upd(sp.sub,620,43);   // stiff, well-damped magnet: grabs at centre, one slight rock (stiffened for the faster arrival)
     if(sp.elLoc) sp.elLoc.style.transform='translateY('+sp.loc.y.toFixed(2)+'px)';
     if(sp.elNum) sp.elNum.style.transform='translateY('+sp.num.y.toFixed(2)+'px)';
     if(sp.elSub) sp.elSub.style.transform='translateY('+sp.sub.y.toFixed(2)+'px)';
@@ -455,6 +459,13 @@
       return curAmt;
     }
     const N=rooms.length, p=posQ();
+    if(pageAnim||sp||awaitReform||reformAnim){                     // a paged step: particles are held/reformed by stepCloud (time),
+      curAmt=stepCloud;                                           // while the NAME's opacity follows its own scroll position
+      ixCluster.style.opacity=Math.max(0,1-curAmt*5).toFixed(3);
+      const nd=Math.min(1,Math.abs(p-Math.round(p))/0.5), nc=nd*nd*(3-2*nd);   // 0 centred → 1 at the midpoint
+      ixScroll.style.opacity=(1-sstep((nc-0.06)/0.56)).toFixed(3);
+      return curAmt;
+    }
     const active=Math.max(0,Math.min(N-1,Math.round(p)));
     if(active!==clusterIdx){ setCluster(active); sampleParticles(); }
     if(active!==activeIdx){ activeIdx=active; markActive(); }
@@ -488,24 +499,34 @@
       const d=0.5-Math.abs(eb-0.5), a=Math.max(0,Math.min(1,(d-0.12)/0.36));   // same amt profile as a single step
       jumpAmt=a*a*(3-2*a);
       if(e>=1){ justLanded=Math.sign(jumpAnim.to-jumpAnim.from)||1; jumpAnim=null; }
-    } else if(pageAnim){                                          // adjacent step: the name scrolls one place over (Option B dwell)
+    } else if(pageAnim){                                          // adjacent step: the name scrolls one place over
       const durS=pageAnim.dur/1000, span=pageAnim.to-pageAnim.from, e=Math.min(1,(now-pageAnim.start)/pageAnim.dur);
+      stepCloud = sstep(Math.min(1,e/0.42));                      // the grid dissolves into a cloud and then HOLDS (no reform yet)
+      if(!stepSwapped && stepCloud>=0.985){                       // at the full cloud, swap A→B under cover of the cloud
+        stepSwapped=true; activeIdx=pageAnim.toIdx; setCluster(activeIdx); sampleParticles(); markActive();
+      }
       if(e<0.95){
         ixScroll.scrollTop = pageAnim.from + span*landPos(e);     // accelerating glide, no slowdown before centre
       } else {
         // the name arrives at centre still moving fast; hand its momentum to the magnet spring so the CENTRE
-        // is what decelerates + stops it (slight overshoot → click), never the approach
+        // is what decelerates + stops it (slight overshoot → click), never the approach. The cloud keeps
+        // holding — it will only reform into the new grid once the name has locked (see awaitReform below).
         const cur=pageAnim.from + span*landPos(e);
         ixScroll.scrollTop = pageAnim.to;
         settleGlide(pageAnim.to-cur, span*landVel(e)/durS);       // remaining offset + its (high, still-rising) closing velocity
-        pageAnim=null; syncHash();
+        stepCloud=1; awaitReform=true; reformAt=now+(reduce?120:240); pageAnim=null; syncHash();   // let the name visibly lock, then reform
       }
+    } else if(reformAnim){                                        // name is locked → now reform the held cloud into the new grid
+      const e=Math.min(1,(now-reformAnim.start)/reformAnim.dur);
+      stepCloud = 1 - sstep(e);
+      if(e>=1){ reformAnim=null; stepCloud=0; stepSwapped=false; }
     }
     const amt=updateIndex();
     if(justLanded){ kickSettle(justLanded); syncHash(); }         // the click into place + shareable #hash
     drawParticles(amt, now);
     const springing=stepSettle(dt);
-    if(!pageAnim && !jumpAnim && !heroAnim && !springing && amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
+    if(awaitReform && now>=reformAt){ awaitReform=false; reformAnim={ start:now, dur:REFORM_DUR }; }   // name locked (timer, not spring) → reform the grid
+    if(!pageAnim && !jumpAnim && !heroAnim && !reformAnim && !awaitReform && !springing && amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
     ixAnim=requestAnimationFrame(ixTick);
   }
   function applyCluster(){ ixIdle=0; if(!ixAnim && !entering && mode==='strip'){ ixLast=0; ixAnim=requestAnimationFrame(ixTick); } }
@@ -513,7 +534,7 @@
   // particles that scatter and dissipate as the index dissolves into the room.
   function choosePlace(i, startAt){
     if(mode!=='strip'||entering) return;
-    entering=true; pageAnim=null; jumpAnim=null; clearSettle();
+    entering=true; pageAnim=null; jumpAnim=null; reformAnim=null; awaitReform=false; stepCloud=0; stepSwapped=false; clearSettle();
     if(P && pcx){                                                  // a quick particle burst on select
       const t0=performance.now(), DUR=reduce?400:820;
       (function step(now){
@@ -526,7 +547,7 @@
     goFullscreen(); enterRoom(i, startAt||0);
   }
   function resetIndex(scrollToI){
-    pageAnim=null; jumpAnim=null; pageArmed=true; clearSettle();
+    pageAnim=null; jumpAnim=null; pageArmed=true; reformAnim=null; awaitReform=false; stepCloud=0; stepSwapped=false; clearSettle();
     if(scrollToI!=null && ixScroll.children[scrollToI]){ ixScroll.scrollTop=centerTop(scrollToI); activeIdx=scrollToI; }
     markActive(); clusterIdx=-1; setCluster(activeIdx);
     ixCluster.style.opacity='1';
