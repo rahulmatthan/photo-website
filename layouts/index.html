@@ -40,7 +40,8 @@
 {{ $i = add $i 1 }}
 {{ end }}
 {{ $roomTitle := $key | replaceRE "-" " " | title }}
-{{ $rooms = $rooms | append (dict "key" $key "title" $roomTitle "count" (len $photos) "heroIdx" $heroIdx "photos" $photos) }}
+{{ $group := "World" }}{{ with (index site.Data.locations $key) }}{{ with .group }}{{ $group = . }}{{ end }}{{ end }}
+{{ $rooms = $rooms | append (dict "key" $key "title" $roomTitle "group" $group "count" (len $photos) "heroIdx" $heroIdx "photos" $photos) }}
 {{ end }}
 {{ $rooms = shuffle $rooms }}
 

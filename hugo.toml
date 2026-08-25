@@ -5,4 +5,5 @@ theme = []
 disableKinds = ['taxonomy', 'term']
 
 [params]
-  description = "Minimalistic photography portfolio."
+  description = "Wildlife photographs from India and Africa — a quiet, gallery-style portfolio by Rahul Matthan."
+  author = "Rahul Matthan"

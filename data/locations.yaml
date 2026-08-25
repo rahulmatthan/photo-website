@@ -1,0 +1,11 @@
+# Per-location metadata, keyed by the folder name under assets/images/.
+# `group` places the location under a menu heading (India / World). Add a line here
+# whenever you add a new location folder. (region / visited / blurb are reserved for
+# future descriptive text and are not shown yet.)
+amboseli:    { group: World }
+jawai:       { group: India }
+kabini:      { group: India }
+marataba:    { group: World }
+masai-mara:  { group: World }
+ngorongoro:  { group: World }
+ranthambore: { group: India }

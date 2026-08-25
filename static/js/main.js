@@ -108,7 +108,7 @@
     // Gaussian scatter of viewport-scaled radius, centred on the (stable) grid centre (dense in the
     // middle, thinning outward). Grid dimensions never touch it. Only the grid HOMES + colours below
     // come from this particular grid, so its shape only emerges as the particles coalesce back in.
-    const n=Math.max(4000, Math.min(9500, Math.round(innerWidth*innerHeight/185)));
+    const n=Math.max(5000, Math.min(13000, Math.round(innerWidth*innerHeight/125)));   // denser still
     const gx=ox+W/2, gy=oy+H/2, gw=Math.min(innerWidth*0.43,660);
     const coreX=gw*0.34, coreY=innerHeight*0.22;              // dense core (the image zone)
     const haloX=innerWidth*0.52, haloY=innerHeight*0.46;      // a sparse halo spreading over the whole screen
@@ -169,7 +169,7 @@
     }
     // colour ⇄ white is one complementary crossfade at the SAME positions, so each dot smoothly
     // desaturates from its photo colour into the white cloud (and back) — no hand-off seam.
-    const t = sstep((cloud-0.04)/0.80);                    // 0 = grid colour, 1 = white cloud — starts early, long+gradual
+    const t = sstep(cloud);                                // 0 = grid colour, 1 = white cloud — colour emerges early in the reform and is held across the whole approach
     // LAYER A — sharp coloured dots that reform the photos (near the grid)
     if(t<0.985){
       pcx.globalAlpha = vis*(1-t);
@@ -200,20 +200,41 @@
       +'<span class="ix-loc">'+esc(rm.title)+'</span>'
       +'<span class="ix-sub">'+rm.count+' photograph'+(rm.count>1?'s':'')+'</span></a>'
     ).join('');
-    ixMenu.innerHTML = rooms.map((rm,i)=>'<a data-i="'+i+'">'+esc(rm.title)+'</a>').join('');
+    buildMenu();
     rooms.forEach(rm=>preloadSrc(heroOf(rm).src));
     setTimeout(()=>rooms.forEach(rm=>clusterSrcs(rm).forEach(preloadSrc)), 500);   // warm every grid
     [...ixScroll.children].forEach(el=>el.addEventListener('click',()=>choosePlace(+el.dataset.i, 0)));
-    [...ixMenu.children].forEach(el=>el.addEventListener('click',()=>scrollToPlace(+el.dataset.i)));
     ixScroll.addEventListener('scroll', onScroll, {passive:true});
-    ixScroll.addEventListener('wheel', onWheel, {passive:false});           // damp the scroll speed
+    ixScroll.addEventListener('wheel', onWheel, {passive:false});           // one gesture → step to the next place
+    ixScroll.addEventListener('touchstart', e=>{ if(mode==='strip') touchY=e.touches[0].clientY; }, {passive:true});
+    ixScroll.addEventListener('touchmove', e=>{ if(mode==='strip'&&!entering) e.preventDefault(); }, {passive:false});
+    ixScroll.addEventListener('touchend', onTouchEnd, {passive:true});
     // click a photograph in the grid → enter that place, starting the slideshow from that photo
     ixScroll.addEventListener('click', e=>{ if(mode!=='strip'||entering) return; if(e.target.closest&&e.target.closest('.ix-item')) return; const k=hitTile(e); if(k>=0) choosePlace(activeIdx, k); });
     ixScroll.addEventListener('mousemove', e=>{ if(mode==='strip') ixScroll.style.cursor = hitTile(e)>=0 ? 'pointer' : ''; });
     sizeCanvas();
-    setCluster(0); markActive(); ixScroll.scrollTop=centerTop(0);   // centre the first place
+    const start=Math.max(0, locFromHash());                          // a shared link (#location) lands centred there
+    setCluster(start); activeIdx=start; markActive(); ixScroll.scrollTop=centerTop(start); syncHash();
     requestAnimationFrame(()=>{ sampleParticles(); applyCluster(); });
+    addEventListener('hashchange', ()=>{ if(mode==='strip' && !entering){ const i=locFromHash(); if(i>=0 && i!==activeIdx) scrollToPlace(i); } });
+    addEventListener('click', e=>{ if(!(e.target.closest && e.target.closest('.ix-mgroup'))) closeMenus(); });   // dismiss an open dropdown
   }
+  // ---- grouped menu (India / World …) + shareable #location links ----
+  function buildMenu(){
+    const order=['India','World'], groups={};
+    rooms.forEach((rm,i)=>{ const g=rm.group||'World'; (groups[g]=groups[g]||[]).push({i,title:rm.title}); });
+    const keys=order.filter(g=>groups[g]).concat(Object.keys(groups).filter(g=>order.indexOf(g)<0).sort());
+    ixMenu.innerHTML = keys.map(g=>
+      '<div class="ix-mgroup"><button type="button" class="ix-mlabel">'+esc(g)+'</button>'
+      +'<div class="ix-msub">'+groups[g].map(o=>'<a data-i="'+o.i+'">'+esc(o.title)+'</a>').join('')+'</div></div>'
+    ).join('');
+    ixMenu.querySelectorAll('a[data-i]').forEach(a=>a.addEventListener('click',()=>{ closeMenus(); scrollToPlace(+a.dataset.i); }));
+    ixMenu.querySelectorAll('.ix-mlabel').forEach(b=>b.addEventListener('click',e=>{   // tap-to-open on touch
+      const g=b.parentNode, was=g.classList.contains('open'); closeMenus(); if(!was) g.classList.add('open'); e.stopPropagation(); }));
+  }
+  function closeMenus(){ ixMenu.querySelectorAll('.ix-mgroup.open').forEach(g=>g.classList.remove('open')); }
+  function locFromHash(){ const h=decodeURIComponent(location.hash.replace(/^#/,'')); return rooms.findIndex(r=>r.key===h); }
+  function syncHash(){ const k=rooms[activeIdx]&&rooms[activeIdx].key; if(k && location.hash.slice(1)!==k) history.replaceState(null,'','#'+k); }
   function hitTile(e){
     const t=ixCluster.children;
     for(let i=0;i<t.length;i++){ const r=t[i].getBoundingClientRect();
@@ -225,53 +246,97 @@
   function centerTop(i){ return i*itemH() + itemH()/2 - innerHeight/2; }
   function posQ(){ return (ixScroll.scrollTop + innerHeight/2 - itemH()/2) / itemH(); }
 
-  // Scroll is damped (a trackpad gesture moves the page more slowly) and then MAGNETICALLY snaps the
-  // nearest place back to centre once the gesture settles. We drive the scroll ourselves (native snap
-  // is off in CSS) so intermediate positions render the dissolve instead of the browser yanking to a snap point.
-  const SCROLL_GAIN = 0.75;                    // <1 → same finger motion travels less = slower
-  const SNAP_ZONE = 0.28;                      // only magnetically snap when this close to a place (where the colour emerges)
-  let wheeling=false, wheelTO=0, snapTO=0, snapUntil=0;
-  function settle(){                            // after the gesture stops, glide the nearest place to centre
-    clearTimeout(snapTO);
-    snapTO=setTimeout(()=>{
-      if(mode!=='strip'||entering||wheeling||performance.now()<snapUntil) return;
-      const q=posQ(), i=clampC(Math.round(q)), top=centerTop(i);
-      if(Math.abs(q-i)>SNAP_ZONE) return;              // out in the cloud → don't yank; rest where you left it
-      if(Math.abs(ixScroll.scrollTop-top)<2) return;   // already home
-      snapUntil=performance.now()+700;                 // hold off re-snapping while this glide runs
-      ixScroll.scrollTo({top, behavior:'smooth'});
-    }, 130);
+  // Paged navigation (aircenter-style): one scroll gesture — ANY force — advances exactly one place; the
+  // page tweens itself so that place lands perfectly centred, and the particle dematerialise→reform plays
+  // out over that fixed tween (driven in ixTick). It can never rest between places. Native scroll is off.
+  const PAGE_DUR = reduce ? 800 : 2400;                    // transition length (ms) — slow + patient
+  // Option B easing (softened): a 50/50 blend of a cloud-dwell curve and a plain ease-in-out. It slows
+  // right down THROUGH the cloud (you see the particles drifting) but never fully holds, and still eases
+  // gently out of / into the grids. Velocity: 0 at the ends, ~0.75 through the cloud, faster on the flanks.
+  const easeB = e => { const d=e-Math.sin(12.5664*e)/12.5664, s=e*e*(3-2*e); return 0.5*d+0.5*s; };
+  let pageAnim=null, jumpAnim=null, jumpAmt=0, jumpSwapped=false, pageArmed=true, wheelStamp=0, touchY=0;
+  function startPage(target){                              // adjacent step: the name scrolls one place over
+    target=clampC(target);
+    pageAnim={ from:ixScroll.scrollTop, to:centerTop(target), start:performance.now(), dur:PAGE_DUR };
+    ixIdle=0; if(!ixAnim && mode==='strip' && !entering) ixAnim=requestAnimationFrame(ixTick);
+  }
+  // JUMP (menu / link to any place, near or far): dematerialise the CURRENT grid here, and at the cloud
+  // peak swap straight to the TARGET grid + jump the scroll — so it reforms directly into the destination
+  // WITHOUT scrolling through (and re-playing) every place in between. One dematerialise→reform, always.
+  function startJump(target){
+    target=clampC(target);
+    if(target===activeIdx || pageAnim || jumpAnim) return;
+    jumpAnim={ from:activeIdx, to:target, start:performance.now(), dur:PAGE_DUR }; jumpSwapped=false;
+    ixIdle=0; if(!ixAnim && mode==='strip' && !entering) ixAnim=requestAnimationFrame(ixTick);
+  }
+  function goStep(dir){
+    if(pageAnim || jumpAnim || mode!=='strip' || entering) return;
+    closeMenus();
+    const target=clampC(activeIdx+dir);
+    if(target!==activeIdx) startPage(target);              // (no-op at the ends)
   }
   function onWheel(e){
     if(mode!=='strip'||entering) return;
-    e.preventDefault();                          // take over from native scrolling
-    let dy=e.deltaY; if(e.deltaMode===1) dy*=16; else if(e.deltaMode===2) dy*=innerHeight;
-    snapUntil=0;                                 // the user is driving now — cancel any snap lock
-    const max=ixScroll.scrollHeight-ixScroll.clientHeight;
-    ixScroll.scrollTop=Math.max(0, Math.min(max, ixScroll.scrollTop + dy*SCROLL_GAIN));
-    wheeling=true; clearTimeout(wheelTO); wheelTO=setTimeout(()=>{ wheeling=false; settle(); }, 110);
+    e.preventDefault();                                     // fully take over scrolling
+    const now=performance.now();
+    if(!pageAnim && !jumpAnim && !pageArmed && now-wheelStamp>140) pageArmed=true;   // re-arm once the inertia tail goes quiet
+    wheelStamp=now;
+    if(pageAnim || jumpAnim || !pageArmed || Math.abs(e.deltaY)<3) return;           // busy / mid-inertia / too small → absorb
+    pageArmed=false;
+    goStep(e.deltaY>0?1:-1);
   }
-  function onScroll(){ applyCluster(); settle(); }   // touch-scroll also settles to centre
+  function onTouchEnd(e){
+    if(mode!=='strip'||entering||pageAnim||jumpAnim) return;
+    const dy=touchY-(e.changedTouches[0]?e.changedTouches[0].clientY:touchY);
+    if(Math.abs(dy)>30) goStep(dy>0?1:-1);                 // swipe up → next place
+  }
+  function onScroll(){ applyCluster(); }
   function markActive(){
     [...ixScroll.children].forEach((el,i)=>el.classList.toggle('active', i===activeIdx));
-    [...ixMenu.children].forEach((el,i)=>el.classList.toggle('on', i===activeIdx));
+    ixMenu.querySelectorAll('a[data-i]').forEach(a=>a.classList.toggle('on', +a.dataset.i===activeIdx));
+    ixMenu.querySelectorAll('.ix-mgroup').forEach(g=>g.classList.toggle('on', !!g.querySelector('a.on')));
   }
-  function scrollToPlace(i){ snapUntil=performance.now()+700; ixScroll.scrollTo({top:centerTop(clampC(i)),behavior:'smooth'}); }
+  function scrollToPlace(i){ startJump(clampC(i)); }   // menu / hash → jump straight there (skip the in-between transitions)
 
   // The grid is scroll-driven: at a place's centre the sharp DOM masonry shows; as you scroll away
   // it dissolves into the particle field (which scatters + fades); at the midpoint the composite
   // swaps to the next place, whose particles gather back into its sharp grid as it reaches centre.
+  function altOf(p){ const t=p.title||'', pl=p.place||''; return t && pl ? t+', '+pl : (t||pl); }
   function setCluster(i){
     clusterIdx=i;
-    ixCluster.innerHTML = clusterSrcs(rooms[i]).map(s=>'<div class="ix-thumb"><img src="'+s+'" alt=""></div>').join('');
+    ixCluster.innerHTML = rooms[i].photos.slice(0,9).map(p=>'<div class="ix-thumb"><img src="'+(p.card||p.src)+'" alt="'+esc(altOf(p))+'"></div>').join('');
     [...ixCluster.querySelectorAll('img')].forEach(im=>{ if(!im.complete) im.addEventListener('load',sampleParticles,{once:true}); });
   }
   // scroll-driven dissolve: a dead zone holds the sharp grid near a place's centre (a magnetic hold),
   // then it dematerialises into the central cloud as you push past. A continuous rAF tick keeps the
   // cloud buzzing (time-driven) while it's on screen; it idles out when the grid is fully settled.
-  let curAmt=0, ixAnim=0, ixIdle=0;
+  let curAmt=0, ixAnim=0, ixIdle=0, ixLast=0, sp=null;
+  // A subtle settle: when the page lands, the heavy name springs into place with a small overshoot,
+  // and the two subtext lines get their own springier, slightly-independent bounce (a satisfying click).
+  function kickSettle(dir){
+    const item=ixScroll.children[activeIdx]; if(!item) return;
+    sp={ loc:{y:0,v:-dir*210}, num:{y:0,v:-dir*168}, sub:{y:0,v:-dir*150},   // heavy name overshoots most (inertia)
+         elLoc:item.querySelector('.ix-loc'), elNum:item.querySelector('.ix-num'), elSub:item.querySelector('.ix-sub') };
+  }
+  function stepSettle(dt){
+    if(!sp) return false;
+    const upd=(s,k,c)=>{ s.v += (-k*s.y - c*s.v)*dt; s.y += s.v*dt; return Math.abs(s.y)+Math.abs(s.v); };
+    const e = upd(sp.loc,290,17) + upd(sp.num,290,17) + upd(sp.sub,290,17);   // same spring for all three → they bounce in sync
+    if(sp.elLoc) sp.elLoc.style.transform='translateY('+sp.loc.y.toFixed(2)+'px)';
+    if(sp.elNum) sp.elNum.style.transform='translateY('+sp.num.y.toFixed(2)+'px)';
+    if(sp.elSub) sp.elSub.style.transform='translateY('+sp.sub.y.toFixed(2)+'px)';
+    if(e<0.4){ clearSettle(); return false; }   // snap the sub-pixel tail to rest and clear the transforms
+    return true;
+  }
+  function clearSettle(){ if(sp){ [sp.elLoc,sp.elNum,sp.elSub].forEach(el=>{ if(el) el.style.transform=''; }); sp=null; } }
   function updateIndex(){
     if(entering || mode!=='strip') return curAmt;
+    if(jumpAnim){                                                  // a jump drives amt directly (place swap handled in ixTick)
+      curAmt=jumpAmt;
+      ixCluster.style.opacity=Math.max(0,1-curAmt*5).toFixed(3);
+      ixScroll.style.opacity=(1-sstep((curAmt-0.06)/0.56)).toFixed(3);
+      return curAmt;
+    }
     const N=rooms.length, p=posQ();
     const active=Math.max(0,Math.min(N-1,Math.round(p)));
     if(active!==clusterIdx){ setCluster(active); sampleParticles(); }
@@ -279,21 +344,41 @@
     let a=Math.max(0,Math.min(1,(Math.abs(p-active)-0.12)/0.36));   // flat dead zone near centre, then ramp
     curAmt=a*a*(3-2*a);                                             // smoothstep
     ixCluster.style.opacity=Math.max(0,1-curAmt*5).toFixed(3);     // sharp grid ↔ particles hand off (matches vis in drawParticles)
+    // the LOCATION text (names + subtext) fades fully OUT before the cloud peak, back IN as it reforms
+    // (the masthead + hint stay — Rahul: "leave the brand and menu… I meant no location text")
+    ixScroll.style.opacity=(1-sstep((curAmt-0.06)/0.56)).toFixed(3);
     return curAmt;
   }
   function ixTick(now){
     if(entering || mode!=='strip'){ ixAnim=0; return; }
+    const dt = ixLast ? Math.min(0.05,(now-ixLast)/1000) : 0.016; ixLast=now;
+    let justLanded=0;
+    if(jumpAnim){                                                 // dematerialise here → swap at the peak → reform at the target
+      const e=Math.min(1,(now-jumpAnim.start)/jumpAnim.dur), eb=easeB(e);
+      if(!jumpSwapped && eb>=0.5){                                // at the full cloud: swap the composite + jump the scroll (invisible)
+        jumpSwapped=true; activeIdx=jumpAnim.to; setCluster(activeIdx); sampleParticles(); markActive(); ixScroll.scrollTop=centerTop(activeIdx);
+      }
+      const d=0.5-Math.abs(eb-0.5), a=Math.max(0,Math.min(1,(d-0.12)/0.36));   // same amt profile as a single step
+      jumpAmt=a*a*(3-2*a);
+      if(e>=1){ justLanded=Math.sign(jumpAnim.to-jumpAnim.from)||1; jumpAnim=null; }
+    } else if(pageAnim){                                          // adjacent step: the name scrolls one place over (Option B dwell)
+      const e=Math.min(1,(now-pageAnim.start)/pageAnim.dur);
+      ixScroll.scrollTop = pageAnim.from + (pageAnim.to-pageAnim.from)*easeB(e);
+      if(e>=1){ justLanded=Math.sign(pageAnim.to-pageAnim.from)||1; pageAnim=null; }
+    }
     const amt=updateIndex();
+    if(justLanded){ kickSettle(justLanded); syncHash(); }         // the click into place + shareable #hash
     drawParticles(amt, now);
-    if(amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
+    const springing=stepSettle(dt);
+    if(!pageAnim && !jumpAnim && !springing && amt<=0.003){ if(++ixIdle>44){ ixAnim=0; return; } } else ixIdle=0;   // idle out once fully settled
     ixAnim=requestAnimationFrame(ixTick);
   }
-  function applyCluster(){ ixIdle=0; if(!ixAnim && !entering && mode==='strip') ixAnim=requestAnimationFrame(ixTick); }
+  function applyCluster(){ ixIdle=0; if(!ixAnim && !entering && mode==='strip'){ ixLast=0; ixAnim=requestAnimationFrame(ixTick); } }
   // choose a place (optionally starting the slideshow at photo `startAt`) → the grid bursts into
   // particles that scatter and dissipate as the index dissolves into the room.
   function choosePlace(i, startAt){
     if(mode!=='strip'||entering) return;
-    entering=true;
+    entering=true; pageAnim=null; jumpAnim=null; clearSettle();
     if(P && pcx){                                                  // a quick particle burst on select
       const t0=performance.now(), DUR=reduce?400:820;
       (function step(now){
@@ -306,6 +391,7 @@
     goFullscreen(); enterRoom(i, startAt||0);
   }
   function resetIndex(scrollToI){
+    pageAnim=null; jumpAnim=null; pageArmed=true; clearSettle();
     if(scrollToI!=null && ixScroll.children[scrollToI]){ ixScroll.scrollTop=centerTop(scrollToI); activeIdx=scrollToI; }
     markActive(); clusterIdx=-1; setCluster(activeIdx);
     ixCluster.style.opacity='1';
@@ -320,7 +406,7 @@
 
   function swapRoom(){
     const p=currentRoom.photos[roomIdx];
-    photo.src=p.src;
+    photo.src=p.src; photo.alt=altOf(p);
     document.documentElement.style.setProperty('--dom', dom[p.src] || '#caa46a');
     capTitle.textContent=p.title||'';
     capCue.style.display='none';
@@ -410,8 +496,8 @@
   });
   addEventListener('keydown', e => {
     if(mode==='strip'){
-      if(e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); scrollToPlace(activeIdx+1); }
-      else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); scrollToPlace(activeIdx-1); }
+      if(e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); goStep(1); }
+      else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); goStep(-1); }
       else if(e.key==='Home'){ e.preventDefault(); scrollToPlace(0); }
       else if(e.key==='Enter'){ e.preventDefault(); chooseCentred(); }
     } else if(mode==='room'){
