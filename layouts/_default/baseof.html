@@ -9,10 +9,11 @@
     {{ with .Site.Params.author }}<meta name="author" content="{{ . }}">{{ end }}
     <link rel="canonical" href="{{ .Permalink }}">
 
-    {{/* Open Graph / Twitter — a shared link unfurls with the site card + a hero image */}}
+    {{/* Open Graph / Twitter — a shared link unfurls with the site card + a hero image.
+         Pick the first real image in a real location folder (skip _-folders like _inbox and non-images). */}}
     {{ $og := "" }}
-    {{ with (resources.Match "images/*/_*") }}{{ $og = (index . 0) }}{{ end }}
-    {{ if not $og }}{{ with (resources.Match "images/*/*") }}{{ $og = (index . 0) }}{{ end }}{{ end }}
+    {{ range (resources.Match "images/*/_*") }}{{ if not $og }}{{ if not (strings.HasPrefix (path.Base (path.Dir .Name)) "_") }}{{ $og = . }}{{ end }}{{ end }}{{ end }}
+    {{ if not $og }}{{ range (resources.Match "images/*/*") }}{{ $l := lower .Name }}{{ if not $og }}{{ if and (not (strings.HasPrefix (path.Base (path.Dir .Name)) "_")) (or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp")) }}{{ $og = . }}{{ end }}{{ end }}{{ end }}{{ end }}
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ .Site.Title }}">
     <meta property="og:title" content="{{ .Title }}">
