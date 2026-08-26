@@ -10,8 +10,9 @@ on:
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# (contents: write so the build can commit inbox images back into their folders)
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -43,6 +44,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Sort inbox photos into location folders
+        id: sort
+        run: python3 scripts/sort-inbox.py
+      - name: Commit sorted photos back to the repo
+        if: steps.sort.outputs.moved != '' && steps.sort.outputs.moved != '0'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "assets/images" "data/locations.yaml"
+          git commit -m "Auto-sort inbox photos into location folders [skip ci]"
+          git push origin HEAD:main || echo "::warning::couldn't push sorted photos back — they are still deployed this run"
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5

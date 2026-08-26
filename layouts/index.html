@@ -3,8 +3,9 @@
 {{ $keys := slice }}
 {{ range (resources.Match "images/*/*") }}
 {{ $l := lower .Name }}
-{{ if or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp") }}
-{{ $keys = $keys | append (path.Base (path.Dir .Name)) }}
+{{ $dir := path.Base (path.Dir .Name) }}
+{{ if and (not (strings.HasPrefix $dir "_")) (or (strings.HasSuffix $l ".jpg") (strings.HasSuffix $l ".jpeg") (strings.HasSuffix $l ".png") (strings.HasSuffix $l ".webp")) }}
+{{ $keys = $keys | append $dir }}
 {{ end }}
 {{ end }}
 {{ $keys = uniq $keys }}
