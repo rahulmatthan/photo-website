@@ -32,6 +32,9 @@ while true; do
 
         cd "$REPO_DIR"
 
+        # Absorb any CI auto-sort commit (from the _inbox workflow) first, so our push fast-forwards
+        git pull --rebase --autostash origin main
+
         # Check if there are actual git changes
         if [ -n "$(git status --porcelain)" ]; then
             echo "Committing and pushing changes..."
