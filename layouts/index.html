@@ -59,7 +59,8 @@
   <!-- HERO (opening): a striking black-panther portrait; the name rises out of the dark, then the whole
        thing dissolves in the cloudburst into the collection. Inside indexView so the particle canvas can
        lift above it during the dissolve. Skipped when a shared #location link is used. -->
-  {{ with (resources.GetMatch "images/kabini/Blackie*") }}{{ $hero := .Fit "2560x2560 webp q80" }}
+  {{/* Opening hero from a dedicated, stable location (_hero) so reshuffling the photo folders never affects it */}}
+  {{ with (resources.GetMatch "images/_hero/*") }}{{ $hero := .Fit "2560x2560 webp q80" }}
   <div class="hero" id="hero">
     <img class="hero-img" id="heroImg" src="{{ $hero.RelPermalink }}" alt="A black panther in the dark, Kabini">
     <div class="hero-veil"></div>
