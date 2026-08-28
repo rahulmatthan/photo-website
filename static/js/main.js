@@ -5,9 +5,10 @@
   const G = window.GALLERY || {rooms:[]};
   const rooms = G.rooms || [];
   const $ = id => document.getElementById(id);
-  const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'), capCue=$('capCue'),
-        reveal=$('reveal'), back=$('back'), sitEl=$('sit'), locLink=$('locLink');
+  const photo=$('photo'), plate=$('plate'), capTitle=$('capTitle'), capPlace=$('capPlace'),
+        reveal=$('reveal'), back=$('back'), sitEl=$('sit');
   const indexView=$('indexView'), ixScroll=$('ixScroll'), ixCluster=$('ixCluster'), ixMenu=$('ixMenu');
+  const ixTop=document.querySelector('.ix-topband'), ixBg=$('ixBg');
   const hero=$('hero'), heroImg=$('heroImg'), heroCv=$('heroCv'), hcx = heroCv && heroCv.getContext('2d');
   const enterMsg=$('enterMsg'), enterH=$('enterH');
   const cv=$('cv'), cx = cv && cv.getContext('2d',{willReadFrequently:true});
@@ -530,27 +531,126 @@
     ixAnim=requestAnimationFrame(ixTick);
   }
   function applyCluster(){ ixIdle=0; if(!ixAnim && !entering && mode==='strip'){ ixLast=0; ixAnim=requestAnimationFrame(ixTick); } }
-  // choose a place (optionally starting the slideshow at photo `startAt`) → the grid bursts into
-  // particles that scatter and dissipate as the index dissolves into the room.
+  // ---- ENTER-A-ROOM dematerialisation (the hero effect, reused): the whole grid breaks into particles that
+  //      keep each photo's colour, spread into a FULL-SCREEN cloud, then the wind scatters it away to black —
+  //      after which the "Now entering the … Gallery" text rises. No reveal-behind: we're going to black.
+  let RB=null, roomBurst=null;
+  const ROOM_DUR = reduce ? 2200 : 4800;                          // slow, hero-style, in 3 beats: dematerialise → buzz → fly away to black
+  // draw one on-screen text element onto ctx at its true position, matching font/colour — so the giant name,
+  // labels and masthead all become particles too (not just the photos)
+  function drawTextEl(ctx, el){
+    if(!el) return;
+    let txt=(el.textContent||'').trim(); if(!txt) return;
+    const r=el.getBoundingClientRect();
+    if(r.width<1 || r.bottom<=0 || r.top>=innerHeight || r.right<=0 || r.left>=innerWidth) return;
+    const cs=getComputedStyle(el);
+    if(parseFloat(cs.opacity)<0.05 || cs.visibility==='hidden') return;
+    if(cs.textTransform==='uppercase') txt=txt.toUpperCase();
+    const size=parseFloat(cs.fontSize)||16;
+    ctx.save();
+    ctx.font=(cs.fontStyle||'normal')+' '+(cs.fontWeight||'400')+' '+size+'px '+cs.fontFamily;
+    ctx.fillStyle=cs.color; ctx.textBaseline='alphabetic';
+    try{ ctx.letterSpacing=cs.letterSpacing; }catch(e){}
+    ctx.fillText(txt, r.left, r.top + size*0.78);
+    ctx.restore();
+  }
+  // Rasterise the WHOLE visible index — the giant name, labels, masthead AND the grid — onto a full-screen
+  // canvas, so the ENTIRE page dematerialises into particles (like the full-screen hero), not just the photos.
+  function sampleRoomBurst(){
+    if(!pcx) return false;
+    const W=innerWidth, H=innerHeight;
+    scv.width=W; scv.height=H; sxx.clearRect(0,0,W,H);
+    const bg=sxx.createRadialGradient(W*0.5,-0.10*H,0, W*0.5,-0.10*H,Math.max(W,H)*1.25);   // the backdrop, so it particalises too
+    bg.addColorStop(0,'#0c1017'); bg.addColorStop(0.58,'#070a10'); bg.addColorStop(1,'#030508');
+    sxx.fillStyle=bg; sxx.fillRect(0,0,W,H);
+    let drew=1;
+    for(const t of [...ixCluster.children]){                       // the photographs, at their screen rects
+      const im=t.querySelector('img'); if(!im) continue;
+      const src=im.getAttribute('src'), dec=cache[src];
+      const img=(dec&&dec.complete&&dec.naturalWidth)?dec:(im.complete&&im.naturalWidth?im:null);
+      if(!img) continue;
+      const r=t.getBoundingClientRect(); if(r.width<1) continue;
+      sxx.drawImage(img, r.left, r.top, r.width, r.height); drew++;
+    }
+    const act=ixScroll.children[activeIdx];                        // the name + labels + masthead, drawn as text
+    if(act){ drawTextEl(sxx, act.querySelector('.ix-loc')); drawTextEl(sxx, act.querySelector('.ix-num')); drawTextEl(sxx, act.querySelector('.ix-sub')); drew++; }
+    if(ixTop) ixTop.querySelectorAll('.ix-name,.ix-tag,.ix-mlabel,.ix-msub a').forEach(el=>drawTextEl(sxx, el));
+    if(!drew) return false;
+    let data; try{ data=sxx.getImageData(0,0,W,H).data; }catch(e){ return false; }
+    const step=5, chs=step>>1, parts=[];                          // full screen now (backdrop incl.) → slightly coarser to keep the count sane
+    for(let y=0;y<H;y+=step){ for(let x=0;x<W;x+=step){          // particles START where the content actually is → dissolve in place
+      const sx=Math.min(W-1,x+chs), sy=Math.min(H-1,y+chs), idx=(sy*W+sx)*4;
+      if(data[idx+3]<40) continue;
+      const r=data[idx]&0xF8, g=data[idx+1]&0xF8, b=data[idx+2]&0xF8, j=parts.length;
+      parts.push({ x:x+chs, y:y+chs, r, g, b, key:(r<<16|g<<8|b), ph:fr(j*1.73)*6.283,
+        sz: fr(j*3.11)>0.99 ? (2.4+2.6*fr(j*4.41)) : (1.2+1.6*fr(j*2.23)) });
+    }}
+    parts.sort((a,b)=>a.key-b.key);
+    const n=parts.length; if(!n) return false;
+    RB={ n, px:new Float32Array(n), py:new Float32Array(n), vx:new Float32Array(n), vy:new Float32Array(n),
+         ph:new Float32Array(n), sz:new Float32Array(n), col:new Array(n) };
+    for(let i=0;i<n;i++){ const p=parts[i]; RB.px[i]=p.x; RB.py[i]=p.y; RB.ph[i]=p.ph; RB.sz[i]=p.sz;
+      RB.col[i]='rgb('+p.r+','+p.g+','+p.b+')'; }
+    return true;
+  }
+  // The hero burst, exactly — sourced from the grid: turbulence builds slowly (imperceptible at first) so the
+  // photos quietly break into drifting particles, which buzz and diffuse, then a centre-out wind scatters them
+  // all off-screen to black. Velocity-integrated (not lerped to a target), so it dissolves in place.
+  function roomBurstTick(now){
+    const rb=roomBurst; if(!rb || !RB || !pcx){ return; }
+    if(!rb.start){ rb.start=now; rb.last=now-16; }
+    const e=Math.min(1,(now-rb.start)/ROOM_DUR), dt=Math.min(0.05,(now-rb.last)/1000); rb.last=now;
+    // three beats: (1) dematerialise — the page settles into still particles (turb 0) while the DOM crossfades out;
+    // (2) buzz — turbulence ramps up and the particles come alive and drift; (3) fly — the wind scatters them off.
+    const turb = e<0.19 ? 0 : Math.min(1, 0.16 + (e-0.19)/0.26);  // motion begins the instant the particles solidify (no dead beat), then builds
+    const cx=innerWidth*0.5, cy=innerHeight*0.5, GUST=innerWidth*1.15, T=now*0.0021, SPD=160, k=Math.min(1,dt*7);
+    const pAlpha=hbStep(e/0.12)*(1-hbStep((e-0.80)/0.20));        // fade in as it particalises, out as it blows away
+    const gridFade=(1-hbStep(Math.min(1,(e-0.03)/0.18))).toFixed(3);   // the page (incl. its backdrop) becomes the particles first (beat 1)
+    ixCluster.style.opacity=gridFade; ixScroll.style.opacity=gridFade; if(ixTop) ixTop.style.opacity=gridFade; if(ixBg) ixBg.style.opacity=gridFade;
+    pcx.clearRect(0,0,innerWidth,innerHeight);
+    pcx.globalCompositeOperation='source-over'; pcx.globalAlpha=pAlpha;
+    const px=RB.px, py=RB.py, vx=RB.vx, vy=RB.vy, ph=RB.ph;
+    let last='';
+    for(let i=0;i<RB.n;i++){
+      const p=ph[i];
+      const fx=Math.sin(p*12.9+T*6.3)+0.7*Math.sin(p*31.7+T*11.1)+0.55*Math.sin(p*61.3+T*18.7);   // per-seed brownian drift
+      const fy=Math.cos(p*9.3+T*5.7)+0.7*Math.cos(p*27.1+T*10.3)+0.55*Math.cos(p*53.7+T*17.1);
+      const ang=Math.atan2(py[i]-cy,px[i]-cx) + 1.4*Math.sin(p*23.7) + 0.6*Math.sin(p*57.3);       // centre-out scatter
+      const onset=0.60+0.12*(p*0.159154), spd=0.5+1.2*Math.sin(p*11.3)*Math.sin(p*11.3);   // wind holds off until beat 3
+      const wm=hbStep((e-onset)/0.22)*GUST*spd, chaos=0.6+1.8*Math.abs(Math.sin(p*41.7));
+      vx[i]+=((fx*SPD*turb*chaos + Math.cos(ang)*wm)-vx[i])*k;
+      vy[i]+=((fy*SPD*turb*chaos + Math.sin(ang)*wm)-vy[i])*k;
+      px[i]+=vx[i]*dt; py[i]+=vy[i]*dt;
+      const c=RB.col[i]; if(c!==last){ pcx.fillStyle=c; last=c; }
+      const z=RB.sz[i]; pcx.fillRect(px[i], py[i], z, z);
+    }
+    pcx.globalAlpha=1;
+    if(e>=1){                                                     // blown away → hand off to the entry text
+      pcx.clearRect(0,0,innerWidth,innerHeight); roomBurst=null; RB=null;
+      if(rb.onDone) rb.onDone();
+      return;
+    }
+    requestAnimationFrame(roomBurstTick);
+  }
+  // choose a place (optionally starting the slideshow at photo `startAt`) → the grid dematerialises into a
+  // full-screen cloud, the wind blows it to black, then the "entering the Gallery" text rises.
   function choosePlace(i, startAt){
     if(mode!=='strip'||entering) return;
     entering=true; pageAnim=null; jumpAnim=null; reformAnim=null; awaitReform=false; stepCloud=0; stepSwapped=false; clearSettle();
-    if(P && pcx){                                                  // a quick particle burst on select
-      const t0=performance.now(), DUR=reduce?400:820;
-      (function step(now){
-        const e=Math.min(1,(now-t0)/DUR);
-        ixCluster.style.opacity=Math.max(0,1-e*5).toFixed(3);
-        drawParticles(0.14+e*0.85, now);
-        if(e<1 && entering) requestAnimationFrame(step);
-      })(t0);
+    goFullscreen();
+    if(pcx && sampleRoomBurst()){
+      roomBurst={ start:0, onDone:()=>enterRoom(i, startAt||0, true) };
+      requestAnimationFrame(roomBurstTick);
+    } else {
+      enterRoom(i, startAt||0);
     }
-    goFullscreen(); enterRoom(i, startAt||0);
   }
   function resetIndex(scrollToI){
     pageAnim=null; jumpAnim=null; pageArmed=true; reformAnim=null; awaitReform=false; stepCloud=0; stepSwapped=false; clearSettle();
     if(scrollToI!=null && ixScroll.children[scrollToI]){ ixScroll.scrollTop=centerTop(scrollToI); activeIdx=scrollToI; }
     markActive(); clusterIdx=-1; setCluster(activeIdx);
-    ixCluster.style.opacity='1';
+    ixCluster.style.opacity='1'; ixScroll.style.opacity=''; if(ixTop) ixTop.style.opacity=''; if(ixBg) ixBg.style.opacity='';   // restore (the room-entry burst faded these)
+    roomBurst=null; RB=null;
     if(pcx) pcx.clearRect(0,0,innerWidth,innerHeight);
     requestAnimationFrame(()=>{ sampleParticles(); applyCluster(); });
   }
@@ -563,9 +663,10 @@
   function swapRoom(){
     const p=currentRoom.photos[roomIdx];
     photo.src=p.src; photo.alt=altOf(p);
+    if(p.small) photo.srcset=p.small+' 1024w, '+p.src+' 2048w';
+    photo.sizes='(max-width: 1347px) 1024px, 2048px';
     document.documentElement.style.setProperty('--dom', dom[p.src] || '#caa46a');
     capTitle.textContent=p.title||'';
-    capCue.style.display='none';
     capPlace.textContent=p.place||''; capPlace.style.display=p.place?'':'none';
     back.classList.add('avail');
     const ni=(roomIdx+1)%currentRoom.photos.length;
@@ -610,7 +711,7 @@
   // A slow, deliberate entry: the index dissolves to black, the title fades in, then the
   // subtitle, both breathe, fade to black, wait in darkness, then the print rises.
   const FADE_TXT = 2000;   // matches the CSS opacity transition on .h / .p
-  function enterRoom(i, startAt){
+  function enterRoom(i, startAt, fromBurst){
     entering=true;
     clearEnterTimers();
     enterH.textContent='Now entering the '+rooms[i].title+' Gallery';
@@ -619,7 +720,7 @@
     const T = reduce
       ? { pre:500,  subDelay:400,  hold:500,  black:400 }
       : { pre:1800, subDelay:1600, hold:1600, black:1300 };
-    let t = T.pre;                                          // black settled before any text
+    let t = fromBurst ? (reduce?200:600) : T.pre;          // the dematerialisation already blacked the screen
     enterTimers.push(setTimeout(()=>enterMsg.classList.add('h-in'), t));           // 2. title fades in
     t += T.subDelay;
     enterTimers.push(setTimeout(()=>enterMsg.classList.add('p-in'), t));           // 3. subtitle fades in, after the title

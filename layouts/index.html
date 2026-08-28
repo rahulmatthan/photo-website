@@ -25,6 +25,7 @@
 {{ $i := 0 }}
 {{ range $imgs }}
 {{ $img := .Fit "2048x2048 webp q80" }}
+{{ $small := .Fit "1024x1024 webp q78" }}
 {{ $card := .Fit "900x900 webp q78" }}
 {{ $base := path.Base .Name }}
 {{ $isHero := hasPrefix $base "_" }}
@@ -36,7 +37,7 @@
 {{ $title := trim (index $parts 0) " " }}
 {{ $place := "" }}
 {{ if gt (len $parts) 1 }}{{ $place = trim (index $parts 1) " " }}{{ end }}
-{{ $photos = $photos | append (dict "src" $img.RelPermalink "card" $card.RelPermalink "title" $title "place" $place) }}
+{{ $photos = $photos | append (dict "src" $img.RelPermalink "small" $small.RelPermalink "card" $card.RelPermalink "title" $title "place" $place) }}
 {{ if $isHero }}{{ $heroIdx = $i }}{{ end }}
 {{ $i = add $i 1 }}
 {{ end }}
@@ -48,6 +49,7 @@
 
 <!-- INDEX (overview): a dark editorial index — names scroll, an image cluster explodes/reforms per place -->
 <div class="indexView" id="indexView">
+  <div class="ix-bg" id="ixBg"></div>
   <header class="ix-topband">
     <div class="ix-logo"><span class="ix-name">Rahul Matthan</span><span class="ix-tag">Wildlife Photographs</span></div>
     <nav class="ix-menu" id="ixMenu"></nav>
@@ -86,9 +88,7 @@
     <figcaption class="plate" id="plate">
       <span class="t" id="capTitle"></span>
       <span class="p" id="capPlace"></span>
-      <span class="cue" id="capCue"></span>
     </figcaption>
-    <button type="button" class="locLink" id="locLink"></button>
   </div>
   <div class="wordmark"><span class="n">Rahul Matthan</span><span class="s">Photography</span></div>
   <div class="layer vignette"></div>

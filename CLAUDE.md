@@ -37,7 +37,7 @@ Example: `A Lone Heron—Masai Mara, 2021.jpg` displays:
 - Title: "A Lone Heron"
 - Details: "Masai Mara, 2021"
 
-If no separator is found, the whole filename is shown as the caption (so mistakes are visible, not silently blank). Fallback captions can also be defined in `data/captions.yaml`, keyed by filename.
+If no separator is found, the whole filename is shown as the caption (so mistakes are visible, not silently blank).
 
 ### Frontend — the index + the spotlight
 - `static/css/style.css` - Two worlds. **The index** (`.indexView`, shown under `body.strip`): a warm near-black scroller (`.ix-scroll`, hidden scrollbar) of full-height `.ix-item` sections — a giant Didot `.ix-loc` name with monospace `.ix-num`/`.ix-sub`, and the hero print `.ix-fig` set large beside it; a fixed `.ix-mast` (wordmark + count) and `.ix-hint`. Fonts: `--didone` (display serif), `--mono` (labels); colours `--ink2`/`--muted2`. **The spotlight room** (`.stage`, shown under `body.room`): warm wall gradient, spotlight/glow layers (glow tinted per-image via `--dom`), a framed print (`.frame` moulding → `.mat` passe-partout → `#photo` at its native aspect), a centred placard (`.plate`), the wordmark, and `.reveal` (the light: an oversized, heavily-blurred radial-ellipse mask). Landscape-only on touch devices in portrait (rotate prompt).
