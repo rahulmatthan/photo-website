@@ -3,6 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
+    {{/* Content-Security-Policy (defence-in-depth): the site is fully self-contained — no external scripts,
+         fonts, or network calls — so lock it to 'self'. connect-src 'none' means even injected script can't
+         beacon data out; object/base/form are disabled. (img/style allow the inline grain data-URI + JS-set
+         styles; script 'unsafe-inline' covers the build-time window.GALLERY blob.) */}}
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .Title }}</title>
     <meta name="description" content="{{ .Site.Params.description }}">
